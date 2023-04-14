@@ -4,10 +4,10 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Messenger.Migrations
+namespace Messenger.Data.Migrations
 {
     /// <inheritdoc />
-    public partial class InitialCreate : Migration
+    public partial class SomeUpdate1 : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -31,6 +31,9 @@ namespace Messenger.Migrations
                 columns: table => new
                 {
                     Id = table.Column<string>(type: "text", nullable: false),
+                    IntId = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Avatar = table.Column<string>(type: "text", nullable: true),
                     UserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     NormalizedUserName = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
                     Email = table.Column<string>(type: "character varying(256)", maxLength: 256, nullable: true),
@@ -49,6 +52,22 @@ namespace Messenger.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_AspNetUsers", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Chats",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    IsGroup = table.Column<bool>(type: "boolean", nullable: false),
+                    Title = table.Column<string>(type: "text", nullable: true),
+                    CountOfMesages = table.Column<int>(type: "integer", nullable: false),
+                    Avatar = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Chats", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -157,6 +176,72 @@ namespace Messenger.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "Messages",
+                columns: table => new
+                {
+                    ChatId = table.Column<int>(type: "integer", nullable: false),
+                    InChatId = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    Content = table.Column<string>(type: "text", nullable: true),
+                    Timestamp = table.Column<DateTime>(type: "timestamp with time zone", nullable: false),
+                    FromUserIntId = table.Column<int>(type: "integer", nullable: false),
+                    FromUserId = table.Column<string>(type: "text", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Messages", x => new { x.ChatId, x.InChatId });
+                    table.ForeignKey(
+                        name: "FK_Messages_AspNetUsers_FromUserId",
+                        column: x => x.FromUserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id");
+                    table.ForeignKey(
+                        name: "FK_Messages_Chats_ChatId",
+                        column: x => x.ChatId,
+                        principalTable: "Chats",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "ChatUser",
+                columns: table => new
+                {
+                    UserId = table.Column<string>(type: "text", nullable: false),
+                    ChatId = table.Column<int>(type: "integer", nullable: false),
+                    LastReadMessageInChatId = table.Column<int>(type: "integer", nullable: true),
+                    LastReadMessageChatId = table.Column<int>(type: "integer", nullable: true),
+                    NewestMessageInChatId = table.Column<int>(type: "integer", nullable: true),
+                    NewestMessageChatId = table.Column<int>(type: "integer", nullable: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ChatUser", x => new { x.ChatId, x.UserId });
+                    table.ForeignKey(
+                        name: "FK_ChatUser_AspNetUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "AspNetUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ChatUser_Chats_ChatId",
+                        column: x => x.ChatId,
+                        principalTable: "Chats",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ChatUser_Messages_LastReadMessageChatId_LastReadMessageInCh~",
+                        columns: x => new { x.LastReadMessageChatId, x.LastReadMessageInChatId },
+                        principalTable: "Messages",
+                        principalColumns: new[] { "ChatId", "InChatId" });
+                    table.ForeignKey(
+                        name: "FK_ChatUser_Messages_NewestMessageChatId_NewestMessageInChatId",
+                        columns: x => new { x.NewestMessageChatId, x.NewestMessageInChatId },
+                        principalTable: "Messages",
+                        principalColumns: new[] { "ChatId", "InChatId" });
+                });
+
             migrationBuilder.CreateIndex(
                 name: "IX_AspNetRoleClaims_RoleId",
                 table: "AspNetRoleClaims",
@@ -189,10 +274,36 @@ namespace Messenger.Migrations
                 column: "NormalizedEmail");
 
             migrationBuilder.CreateIndex(
+                name: "IX_AspNetUsers_IntId",
+                table: "AspNetUsers",
+                column: "IntId",
+                unique: true);
+
+            migrationBuilder.CreateIndex(
                 name: "UserNameIndex",
                 table: "AspNetUsers",
                 column: "NormalizedUserName",
                 unique: true);
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatUser_LastReadMessageChatId_LastReadMessageInChatId",
+                table: "ChatUser",
+                columns: new[] { "LastReadMessageChatId", "LastReadMessageInChatId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatUser_NewestMessageChatId_NewestMessageInChatId",
+                table: "ChatUser",
+                columns: new[] { "NewestMessageChatId", "NewestMessageInChatId" });
+
+            migrationBuilder.CreateIndex(
+                name: "IX_ChatUser_UserId",
+                table: "ChatUser",
+                column: "UserId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_Messages_FromUserId",
+                table: "Messages",
+                column: "FromUserId");
         }
 
         /// <inheritdoc />
@@ -214,10 +325,19 @@ namespace Messenger.Migrations
                 name: "AspNetUserTokens");
 
             migrationBuilder.DropTable(
+                name: "ChatUser");
+
+            migrationBuilder.DropTable(
                 name: "AspNetRoles");
 
             migrationBuilder.DropTable(
+                name: "Messages");
+
+            migrationBuilder.DropTable(
                 name: "AspNetUsers");
+
+            migrationBuilder.DropTable(
+                name: "Chats");
         }
     }
 }

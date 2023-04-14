@@ -1,16 +1,9 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Identity;
-using Microsoft.AspNetCore.Authentication;
 using System.Security.Claims;
-using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Authorization;
-using Microsoft.Extensions.Logging;
-using Microsoft.AspNetCore.Authentication.JwtBearer;
-using Microsoft.IdentityModel.Tokens;
-using System.IdentityModel.Tokens.Jwt;
-using System.Text;
+using AutoMapper;
 
-using Messenger.Data;
 using Messenger.Models;
 using Messenger.ViewModels;
 namespace Messenger.Controllers;
@@ -22,11 +15,13 @@ public class AuthController: ControllerBase
     private readonly UserManager<User> _userManager;
     private readonly ILogger<AuthController> _logger;
     private readonly SignInManager<User> _signInManager;
-    public AuthController(UserManager<User> userManager, ILogger<AuthController> logger, SignInManager<User> signInManager)
+    private readonly IMapper _mapper;
+    public AuthController(UserManager<User> userManager, ILogger<AuthController> logger, SignInManager<User> signInManager, IMapper mapper)
     {
         _userManager = userManager;
         _logger = logger;
         _signInManager = signInManager;
+        _mapper = mapper;
     }
     [HttpPost("register")]
     public async Task<IActionResult> Register([FromBody] RegisterViewModel model)
@@ -48,7 +43,6 @@ public class AuthController: ControllerBase
                 }
                 return BadRequest(ModelState);
             }
-            await _userManager.DeleteAsync(user); 
             return Ok("Successful registration");
         }
         catch (Exception ex)

@@ -1,10 +1,12 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
+using AutoMapper;
 
 using Messenger.Hubs;
 using Messenger.Data;
 using Messenger.Models;
+using Messenger.Mappings;
 using Messenger;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +19,7 @@ builder.Services.AddSignalR();
 builder.Services.ConfigureIdentity(builder.Configuration);
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme).AddCookie();
 builder.Services.AddAuthorization();
+builder.Services.AddAutoMapper(typeof(ChatProfile), typeof(MessageProfile), typeof(UserProfile));
 // builder.Services.ConfigureJWT(builder.Configuration);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

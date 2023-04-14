@@ -6,9 +6,38 @@ namespace Messenger.Data;
 
 public class ApplicationDbContext : IdentityDbContext<User>
 {
+    public DbSet<Chat> Chats { get; set; } = null!;
+    public DbSet<Message> Messages { get; set; } = null!;
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {
-        Database.EnsureCreated();
+    }
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        base.OnModelCreating(modelBuilder);
+        modelBuilder.Entity<Message>(m => 
+        {
+            m.HasKey(p => new {p.ChatId, p.InChatId});
+            m.Property(p=> p.InChatId).ValueGeneratedOnAdd();
+        });
+        modelBuilder
+            .Entity<Chat>()
+            .HasMany(c => c.Users)
+            .WithMany(u => u.Chats)
+            .UsingEntity<ChatUser>(
+               j => j
+                .HasOne(pt => pt.User)
+                .WithMany(t => t.ChatUsers)
+                .HasForeignKey(pt => pt.UserId),
+            j => j
+                .HasOne(pt => pt.Chat)
+                .WithMany(p => p.ChatUsers)
+                .HasForeignKey(pt => pt.ChatId),
+            j =>
+            {
+                j.HasKey(t => new { t.ChatId, t.UserId });
+                j.ToTable("ChatUser");
+            });
+            modelBuilder.Entity<User>().HasIndex(u => u.IntId).IsUnique();
     }
 }

@@ -9,11 +9,11 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
-namespace Messenger.Migrations
+namespace Messenger.Data.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20230404171907_InitialCreate")]
-    partial class InitialCreate
+    [Migration("20230412082122_SomeUpdate1")]
+    partial class SomeUpdate1
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -25,6 +25,92 @@ namespace Messenger.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("Messenger.Models.Chat", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<string>("Avatar")
+                        .HasColumnType("text");
+
+                    b.Property<int>("CountOfMesages")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsGroup")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Title")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Chats");
+                });
+
+            modelBuilder.Entity("Messenger.Models.ChatUser", b =>
+                {
+                    b.Property<int>("ChatId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.Property<int?>("LastReadMessageChatId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("LastReadMessageInChatId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("NewestMessageChatId")
+                        .HasColumnType("integer");
+
+                    b.Property<int?>("NewestMessageInChatId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("ChatId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.HasIndex("LastReadMessageChatId", "LastReadMessageInChatId");
+
+                    b.HasIndex("NewestMessageChatId", "NewestMessageInChatId");
+
+                    b.ToTable("ChatUser", (string)null);
+                });
+
+            modelBuilder.Entity("Messenger.Models.Message", b =>
+                {
+                    b.Property<int>("ChatId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("InChatId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("InChatId"));
+
+                    b.Property<string>("Content")
+                        .HasColumnType("text");
+
+                    b.Property<string>("FromUserId")
+                        .HasColumnType("text");
+
+                    b.Property<int>("FromUserIntId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("Timestamp")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ChatId", "InChatId");
+
+                    b.HasIndex("FromUserId");
+
+                    b.ToTable("Messages");
+                });
+
             modelBuilder.Entity("Messenger.Models.User", b =>
                 {
                     b.Property<string>("Id")
@@ -32,6 +118,9 @@ namespace Messenger.Migrations
 
                     b.Property<int>("AccessFailedCount")
                         .HasColumnType("integer");
+
+                    b.Property<string>("Avatar")
+                        .HasColumnType("text");
 
                     b.Property<string>("ConcurrencyStamp")
                         .IsConcurrencyToken()
@@ -43,6 +132,12 @@ namespace Messenger.Migrations
 
                     b.Property<bool>("EmailConfirmed")
                         .HasColumnType("boolean");
+
+                    b.Property<int>("IntId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("IntId"));
 
                     b.Property<bool>("LockoutEnabled")
                         .HasColumnType("boolean");
@@ -78,6 +173,9 @@ namespace Messenger.Migrations
                         .HasColumnType("character varying(256)");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("IntId")
+                        .IsUnique();
 
                     b.HasIndex("NormalizedEmail")
                         .HasDatabaseName("EmailIndex");
@@ -221,6 +319,54 @@ namespace Messenger.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("Messenger.Models.ChatUser", b =>
+                {
+                    b.HasOne("Messenger.Models.Chat", "Chat")
+                        .WithMany("ChatUsers")
+                        .HasForeignKey("ChatId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Messenger.Models.User", "User")
+                        .WithMany("ChatUsers")
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Messenger.Models.Message", "LastReadMessage")
+                        .WithMany()
+                        .HasForeignKey("LastReadMessageChatId", "LastReadMessageInChatId");
+
+                    b.HasOne("Messenger.Models.Message", "NewestMessage")
+                        .WithMany()
+                        .HasForeignKey("NewestMessageChatId", "NewestMessageInChatId");
+
+                    b.Navigation("Chat");
+
+                    b.Navigation("LastReadMessage");
+
+                    b.Navigation("NewestMessage");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Messenger.Models.Message", b =>
+                {
+                    b.HasOne("Messenger.Models.Chat", "Chat")
+                        .WithMany("Messages")
+                        .HasForeignKey("ChatId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Messenger.Models.User", "FromUser")
+                        .WithMany()
+                        .HasForeignKey("FromUserId");
+
+                    b.Navigation("Chat");
+
+                    b.Navigation("FromUser");
+                });
+
             modelBuilder.Entity("Microsoft.AspNetCore.Identity.IdentityRoleClaim<string>", b =>
                 {
                     b.HasOne("Microsoft.AspNetCore.Identity.IdentityRole", null)
@@ -270,6 +416,18 @@ namespace Messenger.Migrations
                         .HasForeignKey("UserId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+                });
+
+            modelBuilder.Entity("Messenger.Models.Chat", b =>
+                {
+                    b.Navigation("ChatUsers");
+
+                    b.Navigation("Messages");
+                });
+
+            modelBuilder.Entity("Messenger.Models.User", b =>
+                {
+                    b.Navigation("ChatUsers");
                 });
 #pragma warning restore 612, 618
         }
