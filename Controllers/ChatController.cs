@@ -47,9 +47,10 @@ public class ChatController: ControllerBase
     [HttpGet("getuserschats")]
     public async Task<IActionResult> GetUsersChats()
     {
-        var user = await _dbContext.Users.Include(ch => ch.Chats).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var user = await _dbContext.Users.Include(u => u.Chats).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
         if(user == null) return BadRequest("User not found");
-        return Accepted(user.Chats);
+        var chats = _mapper.Map<List<Chat>, List<ChatViewModel>>(user.Chats);
+        return Accepted(chats);
     }
     [HttpPut("joingroup/chatid={id:int}")]
     public async Task<IActionResult> JoinGroup(int id) 

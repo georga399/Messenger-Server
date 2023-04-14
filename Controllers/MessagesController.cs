@@ -39,8 +39,16 @@ public class MessagesController: ControllerBase
         return Accepted(messages);
     }
     [HttpDelete("deleteMessage/chatid={chatid}/messageid={messageid:int}")]
-    public IActionResult DeleteMessage(int chatid, int messageid)
+    public async Task<IActionResult> DeleteMessage(int chatid, int messageid)
     {
+        var user = await _dbContext.Users.Include(u => u.Chats).ThenInclude(ch => ch.Messages).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
+        if(user == null) return BadRequest("User not found");
+        var chat = user.Chats.FirstOrDefault(ch => ch.Id == chatid);
+        if(chat == null) return BadRequest("Chat not found");
+        var msg = chat.Messages.FirstOrDefault(m => m.InChatId == messageid);
+        if(msg == null) return BadRequest("Message not found");
+        chat.Messages.Remove(msg);
+        await _dbContext.SaveChangesAsync();
         return Accepted($"delete messageid={messageid} from chatid={chatid}");
     }
     [HttpPost("sendmessage")]
@@ -60,19 +68,53 @@ public class MessagesController: ControllerBase
         await _dbContext.SaveChangesAsync();
         return Accepted("Sending message");
     }
-    [HttpGet("getmessages/chatid={chatid:int}/{from:int}-{to:int}")]
-    public IActionResult GetMessageFromTo(int chatid, int from, int to)
-    {
-        return Accepted($"Get messages of chatid={chatid} from {from} to {to}");
+    [HttpGet("getmessagesrange/chatid={chatid:int}/{from:int}-{to:int}")]
+    public async Task<IActionResult> GetMessagesRangeFromTo(int chatid, int from, int to) //TODO: optimize and rewrite for overlap
+    { 
+        var user = await _dbContext.Users.Include(u => u.Chats).ThenInclude(ch => ch.Messages).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
+        if(user == null) return BadRequest("User not found");
+        var chat = user.Chats.FirstOrDefault(ch => ch.Id == chatid);
+        if(chat == null) return BadRequest("Chat not found");
+        var fromMsg = chat.Messages.FindIndex(m => m.InChatId == from);
+        if(fromMsg == -1) return BadRequest("Undefined range");
+        var toMsg = chat.Messages.FindIndex(m => m.InChatId == to);
+        if(toMsg == -1) return BadRequest("Undefined range");
+        if(fromMsg > toMsg) return BadRequest("Undefined range");
+        List<Message> _messages = chat.Messages.GetRange(fromMsg, toMsg-fromMsg+1);
+        List<MessageViewModel> messages = _mapper.Map<List<Message>, List<MessageViewModel>>(_messages);
+        return Accepted(messages);
     }
-    [HttpGet("getlastreadmessage/chatid={chatid}")]
-    public IActionResult GetLastReadMessage(int chatid)
-    {
-        return Accepted($"get last read message chatid={chatid}");
+    [HttpGet("getmessagesrange/chatid={chatid:int}/{from:int}-count={count:int}")]
+    public async Task<IActionResult> GetMessagesRangeCount(int chatid, int from, int count) //TODO: optimize and rewrite for overlap
+    { 
+        var user = await _dbContext.Users.Include(u => u.Chats).ThenInclude(ch => ch.Messages).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
+        if(user == null) return BadRequest("User not found");
+        var chat = user.Chats.FirstOrDefault(ch => ch.Id == chatid);
+        if(chat == null) return BadRequest("Chat not found");
+        var fromMsg = chat.Messages.FindIndex(m => m.InChatId == from);
+        if(fromMsg == -1) return BadRequest("Undefined range");
+        List<Message> _messages = chat.Messages.GetRange(fromMsg, count); // MAYBE UB
+        List<MessageViewModel> messages = _mapper.Map<List<Message>, List<MessageViewModel>>(_messages);
+        return Accepted(messages);
     }
-    [HttpGet("getnewestmessage/chatid={chatid}")]
-    public IActionResult GetNewestMessage(int chatid)
+    [HttpGet("getlastreadmessageid/chatid={chatid}")]
+    public async Task<IActionResult> GetLastReadMessageId(int chatid)
     {
-        return Accepted($"Get newest message chatid={chatid}");
+        var user = await _dbContext.Users.Include(u => u.ChatUsers).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
+        if(user == null) return BadRequest("User not found");
+        var chatUser = user.ChatUsers.FirstOrDefault(cu => cu.ChatId == chatid);
+        if(chatUser == null) return BadRequest("Chat not found");
+        var res = new Dictionary<string, int?>(){["chatid"] = chatUser.LastReadMessageInChatId};
+        return Accepted(res);
+    }
+    [HttpGet("getnewestmessageid/chatid={chatid}")]
+    public async Task<IActionResult> GetNewestMessageId(int chatid)
+    {
+        var user = await _dbContext.Users.Include(u => u.ChatUsers).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
+        if(user == null) return BadRequest("User not found");
+        var chatUser = user.ChatUsers.FirstOrDefault(cu => cu.ChatId == chatid);
+        if(chatUser == null) return BadRequest("Chat not found");
+        var res = new Dictionary<string, int?>(){["chatid"] = chatUser.NewestMessageInChatId};
+        return Accepted(res);    
     }
 }

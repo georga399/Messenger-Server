@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using AutoMapper;
+using System.Text.Json.Serialization;
 
 using Messenger.Hubs;
 using Messenger.Data;
@@ -24,6 +25,8 @@ builder.Services.AddAutoMapper(typeof(ChatProfile), typeof(MessageProfile), type
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 builder.Services.AddAuthorization();
+builder.Services.AddControllers().AddJsonOptions(x =>
+                x.JsonSerializerOptions.ReferenceHandler = ReferenceHandler.IgnoreCycles);
 
 var app = builder.Build();
 
