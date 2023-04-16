@@ -52,7 +52,7 @@ public class MessagesController: ControllerBase
         return Accepted($"delete messageid={messageid} from chatid={chatid}");
     }
     [HttpPost("sendmessage")]
-    public async Task<IActionResult> SendMessage([FromBody] MessageViewModel messageViewModel) 
+    public async Task<IActionResult> SendMessage([FromBody] MessageViewModel messageViewModel) // MAYBE REMOVE THIS METHOD and REWRITE TO HUB
     {
         var user = await _dbContext.Users.FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
         if(user == null) return BadRequest("User not found");
@@ -85,7 +85,7 @@ public class MessagesController: ControllerBase
         return Accepted(messages);
     }
     [HttpGet("getmessagesrange/chatid={chatid:int}/{from:int}-count={count:int}")]
-    public async Task<IActionResult> GetMessagesRangeCount(int chatid, int from, int count) //TODO: optimize and rewrite for overlap
+    public async Task<IActionResult> GetMessagesRangeCount(int chatid, int from, int count) //TODO: optimize
     { 
         var user = await _dbContext.Users.Include(u => u.Chats).ThenInclude(ch => ch.Messages).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
         if(user == null) return BadRequest("User not found");
@@ -93,7 +93,12 @@ public class MessagesController: ControllerBase
         if(chat == null) return BadRequest("Chat not found");
         var fromMsg = chat.Messages.FindIndex(m => m.InChatId == from);
         if(fromMsg == -1) return BadRequest("Undefined range");
-        List<Message> _messages = chat.Messages.GetRange(fromMsg, count); // MAYBE UB
+        if(fromMsg + count >= chat.Messages.Count || fromMsg + count + 1 < 0) return BadRequest("Undefined range");
+        List<Message> _messages;
+        if(count > 0)
+            _messages = chat.Messages.GetRange(fromMsg, count); 
+        else
+            _messages = chat.Messages.GetRange(fromMsg + count, -count); 
         List<MessageViewModel> messages = _mapper.Map<List<Message>, List<MessageViewModel>>(_messages);
         return Accepted(messages);
     }
