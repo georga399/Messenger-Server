@@ -11,21 +11,22 @@ namespace Messenger.Hubs;
 [Authorize]
 public class MessengerHub: Hub
 {
-    //TODO: optimize sending notifies / saving connectionId to DB
-    private readonly static Dictionary<string, HashSet<string>> _ConnectionsMap = new Dictionary<string, HashSet<string>>();
     private readonly ApplicationDbContext _dbContext;
     private readonly IMapper _mapper;
-    public MessengerHub(ApplicationDbContext dbContext, IMapper mapper)
+    private readonly ILogger<MessengerHub> _logger;
+
+    public MessengerHub(ApplicationDbContext dbContext, IMapper mapper, ILogger<MessengerHub> logger)
     {
         _dbContext = dbContext;
         _mapper = mapper;
+        _logger = logger;
     }
     public async Task SendMessage(int chatId, MessageViewModel messageViewModel)
     {
         var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
         if(userId == null) 
         {
-            await this.Clients.Caller.SendAsync("OnSendMessage", "Current user not found");
+            await this.Clients.Caller.SendAsync("OnError", "Current user not found");
             return;
         }
         var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
@@ -35,10 +36,10 @@ public class MessengerHub: Hub
             return;
         } 
         Message message = _mapper.Map<MessageViewModel, Message>(messageViewModel);
-        var chat = await _dbContext.Chats.Include(ch => ch.Users).FirstOrDefaultAsync(ch => ch.Id == message.ChatId);
+        var chat = await _dbContext.Chats.FirstOrDefaultAsync(ch => ch.Id == message.ChatId);
         if(chat == null) 
         {
-            await this.Clients.Caller.SendAsync("OnSendMessage", "Chat not found");
+            await this.Clients.Caller.SendAsync("OnError", "Chat not found");
             return;
         }
         message.FromUser = user;
@@ -50,14 +51,10 @@ public class MessengerHub: Hub
         await _dbContext.SaveChangesAsync();
         messageViewModel = _mapper.Map<Message, MessageViewModel>(message);
         //Sending to clients
-        foreach(var usr in chat.Users) //O(n*n)
-        {
-            HashSet<string>? userConnections;
-            if(_ConnectionsMap.TryGetValue(userId, out userConnections))
-            {
-                await Clients.Clients(userConnections).SendAsync("OnSendMessage", messageViewModel);
-            }
-        }
+        await _dbContext.Entry(chat).Collection(c => c.Users).Query().Where(u => u.Connections.Count > 0).LoadAsync();
+        foreach(var usr in chat.Users)
+            foreach(var cnctn in usr.Connections)
+                await Clients.Client(cnctn.ConnectionID).SendAsync("OnSendMessage", messageViewModel);
     }
     public async Task DeleteMessage(int chatId, int messageId)
     {
@@ -67,8 +64,7 @@ public class MessengerHub: Hub
             await this.Clients.Caller.SendAsync("OnSendMessage", "Current user not found");
             return;
         }
-        //TODO: MAKE NORMAL LOADING
-        var user = await _dbContext.Users.Include(u => u.Chats).ThenInclude(ch => ch.Messages).Include(u => u.Chats).ThenInclude(ch => ch.Users).FirstOrDefaultAsync(u => u.Id == userId);
+        var user = await _dbContext.Users.Include(u => u.Chats).ThenInclude(ch => ch.Messages).FirstOrDefaultAsync(u => u.Id == userId);
         if(user == null)
         {
             await this.Clients.Caller.SendAsync("OnError", "Current user not found");
@@ -93,14 +89,11 @@ public class MessengerHub: Hub
         }
         chat.Messages.Remove(msg);
         await _dbContext.SaveChangesAsync();
-        foreach(var usr in chat.Users) //O(n*n)
-        {
-            HashSet<string>? userConnections;
-            if(_ConnectionsMap.TryGetValue(userId, out userConnections))
-            {
-                await Clients.Clients(userConnections).SendAsync("OnSendMessage", chatId, messageId);
-            }
-        }
+        //Sending to clients
+        await _dbContext.Entry(chat).Collection(c => c.Users).Query().Where(u => u.Connections.Count > 0).LoadAsync();
+        foreach(var usr in chat.Users)
+            foreach(var cnctn in usr.Connections)
+                await Clients.Client(cnctn.ConnectionID).SendAsync("OnDeleteMessage", chatId, messageId);
     }
     public async Task CreateGroupChat(ChatViewModel chatViewModel)
     {
@@ -127,14 +120,11 @@ public class MessengerHub: Hub
             chat.Users.Add(usr);
         }
         await _dbContext.SaveChangesAsync();
-        foreach(var usr in chat.Users) //O(n*n)
-        {
-            HashSet<string>? userConnections;
-            if(_ConnectionsMap.TryGetValue(usr.Id, out userConnections))
-            {
-                await Clients.Clients(userConnections).SendAsync("OnJoinChat", chat.Id);
-            }
-        }
+        //Sending to clients
+        await _dbContext.Entry(chat).Collection(c => c.Users).Query().Where(u => u.Connections.Count > 0).LoadAsync();
+        foreach(var usr in chat.Users)
+            foreach(var cnctn in usr.Connections)
+                await Clients.Client(cnctn.ConnectionID).SendAsync("OnJoinChat", chat.Id); //REWRITE TO RETURN CHATVIEWMODEL
     }
     public async Task JoinChat(int chatId, string userId)
     {
@@ -168,12 +158,12 @@ public class MessengerHub: Hub
         chat.ChatUsers.Add(chatUser);
         chat.Users.Add(user);
         _dbContext.SaveChanges();
-        HashSet<string>? userConnections;
-        if(_ConnectionsMap.TryGetValue(user.Id, out userConnections))
-        {
-            await Clients.Clients(userConnections).SendAsync("OnJoinChat", chat.Id);
-        }
         //TODO: Notify others about joining user in this chat
+        //Sending to clients
+        await _dbContext.Entry(chat).Collection(c => c.Users).Query().Where(u => u.Id == inviterId).LoadAsync();
+        foreach(var usr in chat.Users)
+            foreach(var cnctn in usr.Connections)
+                await Clients.Client(cnctn.ConnectionID).SendAsync("OnJoinChat", chatId);
     }
     public async Task LeaveChat(int chatid)
     {
@@ -201,44 +191,28 @@ public class MessengerHub: Hub
     }
     public override async Task<Task> OnConnectedAsync()
     {
-        try
+        var name = Context.User?.Identity?.Name;
+        var user = _dbContext.Users
+            .Include(u => u.Connections)
+            .SingleOrDefault(u => u.UserName == name);
+        if (user == null)
         {
-            var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
-            if(userId == null || user == null) return base.OnConnectedAsync();
-            HashSet<string>? connections;
-            if (!_ConnectionsMap.TryGetValue(userId, out connections))
-            {
-                connections = new HashSet<string>();
-                _ConnectionsMap.Add(userId, connections);
-            }
-            connections.Add(Context.ConnectionId);
+            await Clients.Caller.SendAsync("OnError", "User not found");
+            return base.OnConnectedAsync();
         }
-        catch(Exception ex)
+        user.Connections.Add(new Connection
         {
-            await Clients.Caller.SendAsync("OnError", "OnConnected: " + ex.Message);
-        }
+            ConnectionID = Context.ConnectionId,
+        });
+        await _dbContext.SaveChangesAsync();
         return base.OnConnectedAsync();
     }
     public override async Task<Task> OnDisconnectedAsync(Exception? exception)
     {
-        try
-        {
-            var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
-            var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
-            if(userId == null || user == null) return base.OnConnectedAsync();
-            HashSet<string>? connections;
-            if (!_ConnectionsMap.TryGetValue(userId, out connections))
-            {
-                return base.OnDisconnectedAsync(exception);
-            }
-            connections.Remove(Context.ConnectionId);
-            if(connections.Count == 0) _ConnectionsMap.Remove(userId);
-        }
-        catch(Exception ex)
-        {
-            await Clients.Caller.SendAsync("OnError", "OnDisconnected: " + ex.Message);
-        }
+        var connections = await _dbContext.Connections.ToListAsync();
+        var connection = connections.FirstOrDefault(c => c.ConnectionID == Context.ConnectionId);
+        if(connection != null) connections.Remove(connection);
+        await _dbContext.SaveChangesAsync();
         return base.OnDisconnectedAsync(exception);
     }
 }

@@ -8,6 +8,7 @@ public class ApplicationDbContext : IdentityDbContext<User>
 {
     public DbSet<Chat> Chats { get; set; } = null!;
     public DbSet<Message> Messages { get; set; } = null!;
+    public DbSet<Connection> Connections {get; set;} = null!;
     public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
         : base(options)
     {
