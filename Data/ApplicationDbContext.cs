@@ -15,11 +15,6 @@ public class ApplicationDbContext : IdentityDbContext<User>
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
-        modelBuilder.Entity<Message>(m => 
-        {
-            m.HasKey(p => new {p.ChatId, p.InChatId});
-            m.Property(p=> p.InChatId).ValueGeneratedOnAdd();
-        });
         modelBuilder
             .Entity<Chat>()
             .HasMany(c => c.Users)

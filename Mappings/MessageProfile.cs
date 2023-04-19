@@ -12,7 +12,8 @@ public class MessageProfile: Profile
         .ForMember(dst => dst.Content, opt => opt.MapFrom(x=>x.Content))
         .ForMember(dst => dst.FromUserId, opt => opt.MapFrom(x=>x.FromUserIntId))
         .ForMember(dst => dst.FromUserName, opt => opt.MapFrom(x=>(x.FromUser == null) ? null : x.FromUser.UserName))
-        .ForMember(dst => dst.Timestamp, opt => opt.MapFrom(x => x.Timestamp));
+        .ForMember(dst => dst.Timestamp, opt => opt.MapFrom(x => x.Timestamp))
+        .ForMember(dst => dst.Id, opt => opt.MapFrom(x => x.Id));
         CreateMap<MessageViewModel, Message>();
     }
 }

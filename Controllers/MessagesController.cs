@@ -45,7 +45,7 @@ public class MessagesController: ControllerBase
         if(user == null) return BadRequest("User not found");
         var chat = user.Chats.FirstOrDefault(ch => ch.Id == chatid);
         if(chat == null) return BadRequest("Chat not found");
-        var msg = chat.Messages.FirstOrDefault(m => m.InChatId == messageid);
+        var msg = chat.Messages.FirstOrDefault(m => m.Id == messageid);
         if(msg == null) return BadRequest("Message not found");
         chat.Messages.Remove(msg);
         await _dbContext.SaveChangesAsync();
@@ -75,9 +75,9 @@ public class MessagesController: ControllerBase
         if(user == null) return BadRequest("User not found");
         var chat = user.Chats.FirstOrDefault(ch => ch.Id == chatid);
         if(chat == null) return BadRequest("Chat not found");
-        var fromMsg = chat.Messages.FindIndex(m => m.InChatId == from);
+        var fromMsg = chat.Messages.FindIndex(m => m.Id == from);
         if(fromMsg == -1) return BadRequest("Undefined range");
-        var toMsg = chat.Messages.FindIndex(m => m.InChatId == to);
+        var toMsg = chat.Messages.FindIndex(m => m.Id == to);
         if(toMsg == -1) return BadRequest("Undefined range");
         if(fromMsg > toMsg) return BadRequest("Undefined range");
         List<Message> _messages = chat.Messages.GetRange(fromMsg, toMsg-fromMsg+1);
@@ -91,7 +91,7 @@ public class MessagesController: ControllerBase
         if(user == null) return BadRequest("User not found");
         var chat = user.Chats.FirstOrDefault(ch => ch.Id == chatid);
         if(chat == null) return BadRequest("Chat not found");
-        var fromMsg = chat.Messages.FindIndex(m => m.InChatId == from);
+        var fromMsg = chat.Messages.FindIndex(m => m.Id == from);
         if(fromMsg == -1) return BadRequest("Undefined range");
         if(fromMsg + count >= chat.Messages.Count || fromMsg + count + 1 < 0) return BadRequest("Undefined range");
         List<Message> _messages;
@@ -109,7 +109,7 @@ public class MessagesController: ControllerBase
         if(user == null) return BadRequest("User not found");
         var chatUser = user.ChatUsers.FirstOrDefault(cu => cu.ChatId == chatid);
         if(chatUser == null) return BadRequest("Chat not found");
-        var res = new Dictionary<string, int?>(){["chatid"] = chatUser.LastReadMessageInChatId};
+        var res = new Dictionary<string, int?>(){["chatid"] = chatUser.LastReadMessageId};
         return Accepted(res);
     }
     [HttpGet("getnewestmessageid/chatid={chatid}")]
@@ -119,7 +119,7 @@ public class MessagesController: ControllerBase
         if(user == null) return BadRequest("User not found");
         var chatUser = user.ChatUsers.FirstOrDefault(cu => cu.ChatId == chatid);
         if(chatUser == null) return BadRequest("Chat not found");
-        var res = new Dictionary<string, int?>(){["chatid"] = chatUser.NewestMessageInChatId};
+        var res = new Dictionary<string, int?>(){["chatid"] = chatUser.NewestMessageId};
         return Accepted(res);    
     }
 }

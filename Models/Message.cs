@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations.Schema;
 namespace Messenger.Models;
 public class Message
 {
+    public int Id {get; set;}
     public string? Content { get; set;}
     public DateTime Timestamp { get; set;}
     public int FromUserIntId{get; set;}
@@ -11,5 +12,4 @@ public class Message
     public int ChatId {get; set;}
     [Required]
     public Chat? Chat{get; set;}
-    public int InChatId{get; set;}
 }

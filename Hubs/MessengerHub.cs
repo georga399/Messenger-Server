@@ -85,7 +85,7 @@ public class MessengerHub: Hub
             await Clients.Caller.SendAsync("OnError", "Chat not found");
             return;
         } 
-        var msg = chat.Messages.FirstOrDefault(m => m.InChatId == messageId);
+        var msg = chat.Messages.FirstOrDefault(m => m.Id == messageId);
         if(msg == null)
         {
             await Clients.Caller.SendAsync("OnError", "Message not found");
