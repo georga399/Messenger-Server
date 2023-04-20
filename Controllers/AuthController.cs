@@ -8,7 +8,7 @@ using Messenger.Models;
 using Messenger.ViewModels;
 namespace Messenger.Controllers;
 
-[ApiController]
+[ApiController] //TODO: Email verification
 [Route("api/[controller]")]
 public class AuthController: ControllerBase
 {

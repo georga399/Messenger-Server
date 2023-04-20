@@ -21,7 +21,7 @@ public class MessengerHub: Hub
         _mapper = mapper;
         _logger = logger;
     }
-    public async Task SendMessage(int chatId, MessageViewModel messageViewModel)
+    public async Task SendMessage(int chatId, MessageViewModel messageViewModel) //TODO: CHANGE NEWEST MESSAGE
     {
         var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
         if(userId == null) 
@@ -56,7 +56,7 @@ public class MessengerHub: Hub
             foreach(var cnctn in usr.Connections)
                 await Clients.Client(cnctn.ConnectionID).SendAsync("OnSendMessage", messageViewModel);
     }
-    public async Task DeleteMessage(int chatId, int messageId)
+    public async Task DeleteMessage(int chatId, int messageId) //TODO: CHANGE NEWEST MESSAGE
     {
         var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
         if(userId == null) 
@@ -188,6 +188,36 @@ public class MessengerHub: Hub
         user.Chats.Remove(chat);
         await _dbContext.SaveChangesAsync();
         await Clients.Caller.SendAsync("OnLeaveChat", $"You left chat chatid={chatid}");
+    }
+    public async Task SetLastReadMessage(int chatId, int messageId) //TODO: optimize
+    {
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        if(userId == null) 
+        {
+            await Clients.Caller.SendAsync("OnError", "User not found");
+            return;
+        }
+        var user = await _dbContext.Users.Include(u => u.ChatUsers).FirstOrDefaultAsync(u => u.Id == userId);
+        if(user == null)
+        {
+            await Clients.Caller.SendAsync("OnError", "User not found");
+            return;
+        }
+        var chat = user.Chats.FirstOrDefault(ch => chatId == ch.Id);
+        if(chat == null)
+        {
+            await Clients.Caller.SendAsync("OnError", "Chat is not found");
+            return;
+        }
+        await _dbContext.Entry(chat).Collection(ch => ch.Messages).LoadAsync();
+        var msg = chat.Messages.FirstOrDefault(m => m.Id == messageId);
+        if(msg == null)
+        {
+            await Clients.Caller.SendAsync("OnError", "Message not found");
+        }
+        await _dbContext.Entry(user).Collection(u => u.ChatUsers).LoadAsync();
+        var chatUser = user.ChatUsers.FirstOrDefault(ch => ch.ChatId == chatId);
+        chatUser!.LastReadMessage = msg;
     }
     public override async Task<Task> OnConnectedAsync()
     {

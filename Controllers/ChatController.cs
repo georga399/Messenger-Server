@@ -14,7 +14,7 @@ namespace Messenger.Controllers;
 
 [Authorize]
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/[controller]")] //TODO: REMOVE CreateGroup JoinChat ENDPOINTS
 public class ChatController: ControllerBase
 {
     private readonly ILogger<ChatController> _logger;

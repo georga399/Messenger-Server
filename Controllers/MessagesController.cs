@@ -14,7 +14,7 @@ namespace Messenger.Controllers;
 
 [Authorize]
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/[controller]")] //TODO: REMOVE SendMessage endpoint
 public class MessagesController: ControllerBase
 {
     private readonly ILogger<MessagesController> _logger;
