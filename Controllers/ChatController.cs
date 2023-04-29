@@ -47,60 +47,68 @@ public class ChatController: ControllerBase
     [HttpGet("getuserschats")]
     public async Task<IActionResult> GetUsersChats()
     {
-        var user = await _dbContext.Users.Include(u => u.Chats).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var user = await _dbContext.Users.Include(u => u.ChatUsers).ThenInclude(cu => cu.Chat).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
         if(user == null) return BadRequest("User not found");
-        var chats = _mapper.Map<List<Chat>, List<ChatViewModel>>(user.Chats);
+        var chats = _mapper.Map<List<Chat>, List<ChatViewModel>>(((from t in user.ChatUsers where true select t.Chat).ToList()));
         return Accepted(chats);
     }
-    [HttpPut("joingroup/chatid={id:int}")]
-    public async Task<IActionResult> JoinGroup(int id) 
+    [HttpGet("getadministratechats")]
+    public async Task<IActionResult> GetAdministrateChats()
     {
-        var user = await _dbContext.Users.Include(ch => ch.Chats).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
+        var user = await _dbContext.Users.Include(u => u.AdministrateChats).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
         if(user == null) return BadRequest("User not found");
-        var chat = user.Chats.FirstOrDefault(ch => ch.Id == id);
-        if(chat != null) return BadRequest("User has already being in this chat");
-        chat = await _dbContext.Chats.FirstOrDefaultAsync(ch => ch.Id == id);
-        if(chat == null) return BadRequest("Chat not found");
-        ChatUser chatUser = new ChatUser{Chat = chat, User = user};
-        user.ChatUsers.Add(chatUser);
-        user.Chats.Add(chat);
-        chat.ChatUsers.Add(chatUser);
-        chat.Users.Add(user);
-        _dbContext.SaveChanges();
-        return Accepted($"Join to group with id {id}");
+        var chats = _mapper.Map<List<Chat>, List<ChatViewModel>>(user.AdministrateChats);
+        return Accepted(chats);
     }
-    [HttpDelete("leavegroupchat/chatid={id:int}")]
-    public async Task<IActionResult> LeaveGroup(int id)
-    {
-        var user = await _dbContext.Users.Include(ch => ch.Chats).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
-        if(user == null) return BadRequest("User not found");
-        Chat? chat = user.Chats.FirstOrDefault(ch => ch.Id == id);
-        if(chat == null) return BadRequest("Chat not found");
-        user.Chats.Remove(chat);
-        await _dbContext.SaveChangesAsync();
-        return Accepted($"Leave from group with id {id}");
-    }
-    [HttpPost("creategroupchat")] 
-    public async Task<IActionResult> CreateGroup([FromBody] ChatViewModel chatViewModel) 
-    {
-        if(!chatViewModel.IsGroup) return BadRequest("Chat should be group");
-        Chat chat = _mapper.Map<ChatViewModel, Chat>(chatViewModel);
-        await _dbContext.Chats.AddAsync(chat);
-        foreach(var usrId in chatViewModel.UsersId)
-        {
-            var usr = _dbContext.Users.FirstOrDefault(u => u.IntId == usrId);
-            if(usr == null)
-            {
-                _dbContext.Remove(chat);
-                return BadRequest($"User with id {usrId} doesn't exist");
-            }
-            ChatUser cu = new ChatUser{Chat = chat, User = usr};
-            usr.ChatUsers.Add(cu);
-            usr.Chats.Add(chat);
-            chat.ChatUsers.Add(cu);
-            chat.Users.Add(usr);
-        }
-        await _dbContext.SaveChangesAsync();
-        return Accepted("Group was created");
-    }
+    // [HttpPut("joingroup/chatid={id:int}")]
+    // public async Task<IActionResult> JoinGroup(int id) 
+    // {
+    //     var user = await _dbContext.Users.Include(ch => ch.Chats).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
+    //     if(user == null) return BadRequest("User not found");
+    //     var chat = user.Chats.FirstOrDefault(ch => ch.Id == id);
+    //     if(chat != null) return BadRequest("User has already being in this chat");
+    //     chat = await _dbContext.Chats.FirstOrDefaultAsync(ch => ch.Id == id);
+    //     if(chat == null) return BadRequest("Chat not found");
+    //     ChatUser chatUser = new ChatUser{Chat = chat, User = user};
+    //     user.ChatUsers.Add(chatUser);
+    //     user.Chats.Add(chat);
+    //     chat.ChatUsers.Add(chatUser);
+    //     chat.Users.Add(user);
+    //     _dbContext.SaveChanges();
+    //     return Accepted($"Join to group with id {id}");
+    // }
+    // [HttpDelete("leavegroupchat/chatid={id:int}")]
+    // public async Task<IActionResult> LeaveGroup(int id)
+    // {
+    //     var user = await _dbContext.Users.Include(ch => ch.Chats).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
+    //     if(user == null) return BadRequest("User not found");
+    //     Chat? chat = user.Chats.FirstOrDefault(ch => ch.Id == id);
+    //     if(chat == null) return BadRequest("Chat not found");
+    //     user.Chats.Remove(chat);
+    //     await _dbContext.SaveChangesAsync();
+    //     return Accepted($"Leave from group with id {id}");
+    // }
+    // [HttpPost("creategroupchat")] 
+    // public async Task<IActionResult> CreateGroup([FromBody] ChatViewModel chatViewModel) 
+    // {
+    //     if(!chatViewModel.IsGroup) return BadRequest("Chat should be group");
+    //     Chat chat = _mapper.Map<ChatViewModel, Chat>(chatViewModel);
+    //     await _dbContext.Chats.AddAsync(chat);
+    //     foreach(var usrId in chatViewModel.UsersId)
+    //     {
+    //         var usr = _dbContext.Users.FirstOrDefault(u => u.IntId == usrId);
+    //         if(usr == null)
+    //         {
+    //             _dbContext.Remove(chat);
+    //             return BadRequest($"User with id {usrId} doesn't exist");
+    //         }
+    //         ChatUser cu = new ChatUser{Chat = chat, User = usr};
+    //         usr.ChatUsers.Add(cu);
+    //         usr.Chats.Add(chat);
+    //         chat.ChatUsers.Add(cu);
+    //         chat.Users.Add(usr);
+    //     }
+    //     await _dbContext.SaveChangesAsync();
+    //     return Accepted("Group was created");
+    // }
 }

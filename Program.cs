@@ -44,4 +44,9 @@ app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<MessengerHub>("/chat");
+
+
+await DbInitializer.PopulateDb(app);
+
+
 app.Run();

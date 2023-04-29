@@ -12,4 +12,6 @@ public class Chat
     public int CountOfMesages{get; set;}
     public List<ChatUser> ChatUsers{get; set;} = new();
     public string? Avatar{get; set;}
+    public string? AdminId { get; set; }
+    public User? Admin{get; set;}
 }

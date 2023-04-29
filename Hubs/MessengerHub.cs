@@ -64,7 +64,7 @@ public class MessengerHub: Hub
             await this.Clients.Caller.SendAsync("OnSendMessage", "Current user not found");
             return;
         }
-        var user = await _dbContext.Users.Include(u => u.Chats).ThenInclude(ch => ch.Messages).FirstOrDefaultAsync(u => u.Id == userId);
+        var user = await _dbContext.Users.Include(u => u.ChatUsers).ThenInclude(cu => cu.Chat).ThenInclude(ch => ch.Messages).FirstOrDefaultAsync(u => u.Id == userId);
         if(user == null)
         {
             await this.Clients.Caller.SendAsync("OnError", "Current user not found");
@@ -75,23 +75,23 @@ public class MessengerHub: Hub
             await Clients.Caller.SendAsync("OnError", "Current user not found");
             return;
         }
-        var chat = user.Chats.FirstOrDefault(ch => ch.Id == chatId);
-        if(chat == null)
+        var chatUser = user.ChatUsers.FirstOrDefault(ch => ch.ChatId == chatId);
+        if(chatUser == null)
         {
             await Clients.Caller.SendAsync("OnError", "Chat not found");
             return;
         } 
-        var msg = chat.Messages.FirstOrDefault(m => m.Id == messageId);
+        var msg = chatUser.Chat.Messages.FirstOrDefault(m => m.Id == messageId);
         if(msg == null)
         {
             await Clients.Caller.SendAsync("OnError", "Message not found");
             return;
         }
-        chat.Messages.Remove(msg);
+        chatUser.Chat.Messages.Remove(msg);
         await _dbContext.SaveChangesAsync();
         //Sending to clients
-        await _dbContext.Entry(chat).Collection(c => c.Users).Query().Where(u => u.Connections.Count > 0).LoadAsync();
-        foreach(var usr in chat.Users)
+        await _dbContext.Entry(chatUser.Chat).Collection(c => c.Users).Query().Where(u => u.Connections.Count > 0).LoadAsync();
+        foreach(var usr in chatUser.Chat.Users)
             foreach(var cnctn in usr.Connections)
                 await Clients.Client(cnctn.ConnectionID).SendAsync("OnDeleteMessage", chatId, messageId);
     }
@@ -115,7 +115,7 @@ public class MessengerHub: Hub
             }
             ChatUser cu = new ChatUser{Chat = chat, User = usr};
             usr.ChatUsers.Add(cu);
-            usr.Chats.Add(chat);
+            // usr.Chats.Add(chat);
             chat.ChatUsers.Add(cu);
             chat.Users.Add(usr);
         }
@@ -146,7 +146,7 @@ public class MessengerHub: Hub
             await Clients.Caller.SendAsync("OnError", "User not found");
             return;
         }
-        var chat = user.Chats.FirstOrDefault(ch => ch.Id == chatId);
+        var chat = await _dbContext.Chats.FirstOrDefaultAsync(ch => ch.Id == chatId);
         if(chat == null)
         {
             await Clients.Caller.SendAsync("OnError", "Chat not found");
@@ -154,7 +154,7 @@ public class MessengerHub: Hub
         }
         ChatUser chatUser = new ChatUser{Chat = chat, User = user};
         user.ChatUsers.Add(chatUser);
-        user.Chats.Add(chat);
+        // user.Chats.Add(chat);
         chat.ChatUsers.Add(chatUser);
         chat.Users.Add(user);
         _dbContext.SaveChanges();
@@ -173,19 +173,19 @@ public class MessengerHub: Hub
             await Clients.Caller.SendAsync("OnError", "Inviter not found");
             return;
         }
-        var user = await _dbContext.Users.Include(u => u.Chats).FirstOrDefaultAsync(u => u.Id == userId);
+        var user = await _dbContext.Users.Include(u => u.ChatUsers).ThenInclude(cu => cu.Chat).FirstOrDefaultAsync(u => u.Id == userId);
         if(user == null)
         {
             await Clients.Caller.SendAsync("OnError", "Inviter not found");
             return;
         }
-        var chat = user.Chats.FirstOrDefault(ch => chatid == ch.Id);
-        if(chat == null)
+        var chatUser = user.ChatUsers.FirstOrDefault(ch => chatid == ch.ChatId);
+        if(chatUser == null)
         {
             await Clients.Caller.SendAsync("OnError", "Chat is not found");
             return;
         }
-        user.Chats.Remove(chat);
+        user.ChatUsers.Remove(chatUser);
         await _dbContext.SaveChangesAsync();
         await Clients.Caller.SendAsync("OnLeaveChat", $"You left chat chatid={chatid}");
     }
@@ -197,27 +197,28 @@ public class MessengerHub: Hub
             await Clients.Caller.SendAsync("OnError", "User not found");
             return;
         }
-        var user = await _dbContext.Users.Include(u => u.ChatUsers).FirstOrDefaultAsync(u => u.Id == userId);
+        var user = await _dbContext.Users.Include(u => u.ChatUsers).ThenInclude(cu=>cu.Chat).FirstOrDefaultAsync(u => u.Id == userId);
         if(user == null)
         {
             await Clients.Caller.SendAsync("OnError", "User not found");
             return;
         }
-        var chat = user.Chats.FirstOrDefault(ch => chatId == ch.Id);
-        if(chat == null)
+        var chatUser = user.ChatUsers.FirstOrDefault(ch => chatId == ch.ChatId);
+        if(chatUser == null)
         {
             await Clients.Caller.SendAsync("OnError", "Chat is not found");
             return;
         }
-        await _dbContext.Entry(chat).Collection(ch => ch.Messages).LoadAsync();
-        var msg = chat.Messages.FirstOrDefault(m => m.Id == messageId);
+        await _dbContext.Entry(chatUser.Chat).Collection(ch => ch.Messages).LoadAsync();
+        var msg = chatUser.Chat.Messages.FirstOrDefault(m => m.Id == messageId);
         if(msg == null)
         {
             await Clients.Caller.SendAsync("OnError", "Message not found");
         }
-        await _dbContext.Entry(user).Collection(u => u.ChatUsers).LoadAsync();
-        var chatUser = user.ChatUsers.FirstOrDefault(ch => ch.ChatId == chatId);
-        chatUser!.LastReadMessage = msg;
+        // await _dbContext.Entry(user).Collection(u => u.ChatUsers).LoadAsync();
+        // var chatUser = user.ChatUsers.FirstOrDefault(ch => ch.ChatId == chatId);
+        chatUser.LastReadMessage = msg;
+        await _dbContext.SaveChangesAsync();
     }
     public override async Task<Task> OnConnectedAsync()
     {

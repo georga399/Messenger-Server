@@ -8,7 +8,9 @@ public class User: IdentityUser
 {
     [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
     public int IntId{get; set;}
-    public List<Chat> Chats {get; set;} = new();
+    //Chats where user is Admin
+    public List<Chat> AdministrateChats {get; set;} = new();
+    // User chats
     public List<ChatUser> ChatUsers{get; set;} = new();
     public string? Avatar{get; set;}
     public List<Connection> Connections{get; set;} = new();
