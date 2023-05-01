@@ -5,41 +5,45 @@ using AutoMapper;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using System.Security.Claims;
+using Microsoft.AspNetCore.StaticFiles;
 
 using Messenger.ViewModels;
 using Messenger.Data;
 using Messenger.Hubs;
 using Messenger.Models;
+using Messenger.Helpers;
+using Messenger.Repositories;
 namespace Messenger.Controllers;
 
 [Authorize]
 [ApiController]
-[Route("api/[controller]")] //TODO: REMOVE CreateGroup JoinChat ENDPOINTS
+[Route("api/[controller]")] 
 public class ChatController: ControllerBase
 {
     private readonly ILogger<ChatController> _logger;
     private readonly ApplicationDbContext _dbContext;
+    private readonly IUnitOfWork _unitOfWork;
     private readonly IHubContext<MessengerHub> _hubContext;
     private readonly IMapper _mapper;
-    public ChatController(ILogger<ChatController> logger, ApplicationDbContext dbContext, IHubContext<MessengerHub> hubContext, IMapper mapper)
+    private readonly IFileValidator _fileValidator;
+    private readonly IWebHostEnvironment _environment;
+
+    public ChatController(ILogger<ChatController> logger, ApplicationDbContext dbContext, 
+        IHubContext<MessengerHub> hubContext, IMapper mapper,
+        IFileValidator fileValidator, IUnitOfWork unitOfWork, IWebHostEnvironment environment)
     {
         _logger= logger;
         _dbContext = dbContext;
         _hubContext = hubContext;
         _mapper = mapper;
+        _fileValidator = fileValidator;
+        _unitOfWork = unitOfWork;
+        _environment = environment;
     }
-    [HttpGet("getallgroupchats")]
-    public IActionResult GetAllGroups()
-    {
-        var _allGroups = (from chat in _dbContext.Chats.Include(ch => ch.Users) where chat.IsGroup == true select chat).ToList();
-        var allGroups = _mapper.Map<List<Chat>, List<ChatViewModel>>(_allGroups);
-        return Accepted(allGroups);
-    }
-
     [HttpGet("getchatinfo/chatid={id:int}")]
     public async Task<IActionResult> GetChatInfo(int id)
     {
-        var _chat = await _dbContext.Chats.Include(c => c.Users).FirstOrDefaultAsync(ch => ch.Id == id);
+        var _chat = await _unitOfWork.ChatRepository.GetChatInfoAsync(id);
         if(_chat == null) return BadRequest("Not found");
         ChatViewModel chat = _mapper.Map<Chat, ChatViewModel>(_chat);
         return Accepted(chat);
@@ -47,68 +51,58 @@ public class ChatController: ControllerBase
     [HttpGet("getuserschats")]
     public async Task<IActionResult> GetUsersChats()
     {
-        var user = await _dbContext.Users.Include(u => u.ChatUsers).ThenInclude(cu => cu.Chat).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
-        if(user == null) return BadRequest("User not found");
-        var chats = _mapper.Map<List<Chat>, List<ChatViewModel>>(((from t in user.ChatUsers where true select t.Chat).ToList()));
-        return Accepted(chats);
+        var userId = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var chats = await _unitOfWork.ChatRepository.GetAllChatsOfUserAsync(userId!);
+        if(chats == null) return BadRequest("User not found");
+        var chatViewModels = _mapper.Map<List<Chat>, List<ChatViewModel>>(chats);
+        return Accepted(chatViewModels);
     }
-    [HttpGet("getadministratechats")]
-    public async Task<IActionResult> GetAdministrateChats()
+    [HttpPost("chatava/{chatId:int}")]
+    public async Task<IActionResult> UploadAvatarOfChat(IFormFile file, int chatId)
     {
-        var user = await _dbContext.Users.Include(u => u.AdministrateChats).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
-        if(user == null) return BadRequest("User not found");
-        var chats = _mapper.Map<List<Chat>, List<ChatViewModel>>(user.AdministrateChats);
-        return Accepted(chats);
+        var userId = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
+        var chat = await _unitOfWork.ChatRepository.GetChatInfoAsync(chatId);
+        if(chat == null)
+        {
+            return BadRequest("Chat not found");
+
+        }
+        var chatUsers = await _unitOfWork.ChatRepository.GetAllMembers(chatId);
+        var cu = chatUsers!.FirstOrDefault(c => c.UserId == userId);
+        if(cu == null)
+        {
+            return BadRequest("Chat not found");
+        }
+        if(!_fileValidator.IsValidPicture(file))
+            return BadRequest("File validation failed!");
+        var fileName = chat.Id.ToString();
+        var folderPath = Path.Combine(_environment.ContentRootPath, "uploads/chatsavatars");
+        var filePath = Path.Combine(folderPath, fileName);
+        if (!Directory.Exists(folderPath))
+                    Directory.CreateDirectory(folderPath);
+        using (var fileStream = new FileStream(filePath, FileMode.Create))
+        {
+            await file.CopyToAsync(fileStream);
+        }
+        chat!.Avatar = filePath;
+        await _unitOfWork.SaveChangesAsync();
+        return Accepted(fileName);
     }
-    // [HttpPut("joingroup/chatid={id:int}")]
-    // public async Task<IActionResult> JoinGroup(int id) 
-    // {
-    //     var user = await _dbContext.Users.Include(ch => ch.Chats).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
-    //     if(user == null) return BadRequest("User not found");
-    //     var chat = user.Chats.FirstOrDefault(ch => ch.Id == id);
-    //     if(chat != null) return BadRequest("User has already being in this chat");
-    //     chat = await _dbContext.Chats.FirstOrDefaultAsync(ch => ch.Id == id);
-    //     if(chat == null) return BadRequest("Chat not found");
-    //     ChatUser chatUser = new ChatUser{Chat = chat, User = user};
-    //     user.ChatUsers.Add(chatUser);
-    //     user.Chats.Add(chat);
-    //     chat.ChatUsers.Add(chatUser);
-    //     chat.Users.Add(user);
-    //     _dbContext.SaveChanges();
-    //     return Accepted($"Join to group with id {id}");
-    // }
-    // [HttpDelete("leavegroupchat/chatid={id:int}")]
-    // public async Task<IActionResult> LeaveGroup(int id)
-    // {
-    //     var user = await _dbContext.Users.Include(ch => ch.Chats).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
-    //     if(user == null) return BadRequest("User not found");
-    //     Chat? chat = user.Chats.FirstOrDefault(ch => ch.Id == id);
-    //     if(chat == null) return BadRequest("Chat not found");
-    //     user.Chats.Remove(chat);
-    //     await _dbContext.SaveChangesAsync();
-    //     return Accepted($"Leave from group with id {id}");
-    // }
-    // [HttpPost("creategroupchat")] 
-    // public async Task<IActionResult> CreateGroup([FromBody] ChatViewModel chatViewModel) 
-    // {
-    //     if(!chatViewModel.IsGroup) return BadRequest("Chat should be group");
-    //     Chat chat = _mapper.Map<ChatViewModel, Chat>(chatViewModel);
-    //     await _dbContext.Chats.AddAsync(chat);
-    //     foreach(var usrId in chatViewModel.UsersId)
-    //     {
-    //         var usr = _dbContext.Users.FirstOrDefault(u => u.IntId == usrId);
-    //         if(usr == null)
-    //         {
-    //             _dbContext.Remove(chat);
-    //             return BadRequest($"User with id {usrId} doesn't exist");
-    //         }
-    //         ChatUser cu = new ChatUser{Chat = chat, User = usr};
-    //         usr.ChatUsers.Add(cu);
-    //         usr.Chats.Add(chat);
-    //         chat.ChatUsers.Add(cu);
-    //         chat.Users.Add(usr);
-    //     }
-    //     await _dbContext.SaveChangesAsync();
-    //     return Accepted("Group was created");
-    // }
+    [HttpGet("chatava/{chatId:int}")]
+    public async Task<IActionResult> GetAvatarOfChat(int chatId)
+    {
+        var folderPath = Path.Combine(_environment.ContentRootPath, "uploads/chatsavatars");
+        var filePath = Path.Combine(folderPath, chatId.ToString());
+        if(filePath == null)
+        {
+            return BadRequest("File not found");
+        }
+        var provider = new FileExtensionContentTypeProvider();
+        if(!provider.TryGetContentType(filePath, out var contenttype))
+        {
+            contenttype ="application/octet-stream";
+        }
+        var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
+        return File(bytes, contenttype, Path.GetFileName(filePath));
+    }
 }

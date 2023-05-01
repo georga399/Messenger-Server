@@ -5,7 +5,8 @@ using Microsoft.EntityFrameworkCore;
 using System.Security.Claims;   
 using Messenger.Models;
 using Messenger.ViewModels;
-using Messenger.Data;  
+using Messenger.Data;
+using Messenger.Repositories;  
 namespace Messenger.Hubs;
 
 [Authorize]
@@ -14,29 +15,22 @@ public class MessengerHub: Hub
     private readonly ApplicationDbContext _dbContext;
     private readonly IMapper _mapper;
     private readonly ILogger<MessengerHub> _logger;
-
-    public MessengerHub(ApplicationDbContext dbContext, IMapper mapper, ILogger<MessengerHub> logger)
+    private readonly IUnitOfWork _unitOfWork;
+    public MessengerHub(ApplicationDbContext dbContext, IMapper mapper, 
+        ILogger<MessengerHub> logger, IUnitOfWork unitOfWork)
     {
         _dbContext = dbContext;
         _mapper = mapper;
         _logger = logger;
+        _unitOfWork = unitOfWork;
     }
-    public async Task SendMessage(int chatId, MessageViewModel messageViewModel) //TODO: CHANGE NEWEST MESSAGE
+    public async Task SendMessage(int chatId, MessageViewModel messageViewModel)
     {
         var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
-        if(userId == null) 
-        {
-            await this.Clients.Caller.SendAsync("OnError", "Current user not found");
-            return;
-        }
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == userId);
-        if(user == null)
-        {
-            await this.Clients.Caller.SendAsync("OnError", "Current user not found");
-            return;
-        } 
+        var user = _unitOfWork.UserRepository.GetById(userId!);
         Message message = _mapper.Map<MessageViewModel, Message>(messageViewModel);
-        var chat = await _dbContext.Chats.FirstOrDefaultAsync(ch => ch.Id == message.ChatId);
+        var chats = await _unitOfWork.ChatRepository.GetAllChatsOfUserAsync(userId!);
+        var chat = chats!.FirstOrDefault(c => c.Id == messageViewModel.ChatId);
         if(chat == null) 
         {
             await this.Clients.Caller.SendAsync("OnError", "Chat not found");
@@ -44,100 +38,76 @@ public class MessengerHub: Hub
         }
         message.FromUser = user;
         message.Chat = chat;
-        message.FromUserIntId = user.IntId;
         message.Timestamp = DateTime.UtcNow;
         //Saving to DB
-        await _dbContext.Messages.AddAsync(message);
-        await _dbContext.SaveChangesAsync();
-        messageViewModel = _mapper.Map<Message, MessageViewModel>(message);
+        await _unitOfWork.MessageRepository.Add(message);
+        await _unitOfWork.SaveChangesAsync();
         //Sending to clients
-        await _dbContext.Entry(chat).Collection(c => c.Users).Query().Where(u => u.Connections.Count > 0).LoadAsync();
-        foreach(var usr in chat.Users)
-            foreach(var cnctn in usr.Connections)
-                await Clients.Client(cnctn.ConnectionID).SendAsync("OnSendMessage", messageViewModel);
+        messageViewModel = _mapper.Map<Message, MessageViewModel>(message);
+        var connectionsOfChat = await _unitOfWork.ConnectionRepository.GetAllConnectionsOfChat(chatId);
+        await Clients.Clients((from t in connectionsOfChat 
+            where true select t.ConnectionID)
+            .ToList())
+            .SendAsync("OnSendMessage", messageViewModel);
     }
-    public async Task DeleteMessage(int chatId, int messageId) //TODO: CHANGE NEWEST MESSAGE
+    public async Task DeleteMessage(int chatId, int messageId) 
     {
         var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
-        if(userId == null) 
+        var user = _unitOfWork.UserRepository.GetById(userId!);
+        var chatsOfUser = await _unitOfWork.ChatRepository.GetAllChatsOfUserAsync(userId!);
+        var chat = chatsOfUser!.FirstOrDefault(c => c.Id == chatId);
+        if(chat == null)
         {
-            await this.Clients.Caller.SendAsync("OnSendMessage", "Current user not found");
+            await this.Clients.Caller.SendAsync("OnError", "Chat not found");
             return;
         }
-        var user = await _dbContext.Users.Include(u => u.ChatUsers).ThenInclude(cu => cu.Chat).ThenInclude(ch => ch.Messages).FirstOrDefaultAsync(u => u.Id == userId);
-        if(user == null)
-        {
-            await this.Clients.Caller.SendAsync("OnError", "Current user not found");
-            return;
-        } 
-        if(user == null) 
-        {
-            await Clients.Caller.SendAsync("OnError", "Current user not found");
-            return;
-        }
-        var chatUser = user.ChatUsers.FirstOrDefault(ch => ch.ChatId == chatId);
-        if(chatUser == null)
-        {
-            await Clients.Caller.SendAsync("OnError", "Chat not found");
-            return;
-        } 
-        var msg = chatUser.Chat.Messages.FirstOrDefault(m => m.Id == messageId);
+        var msg = await _unitOfWork.MessageRepository.GetMessageByIdInChat(messageId, chatId);
         if(msg == null)
         {
             await Clients.Caller.SendAsync("OnError", "Message not found");
             return;
         }
-        chatUser.Chat.Messages.Remove(msg);
-        await _dbContext.SaveChangesAsync();
-        //Sending to clients
-        await _dbContext.Entry(chatUser.Chat).Collection(c => c.Users).Query().Where(u => u.Connections.Count > 0).LoadAsync();
-        foreach(var usr in chatUser.Chat.Users)
-            foreach(var cnctn in usr.Connections)
-                await Clients.Client(cnctn.ConnectionID).SendAsync("OnDeleteMessage", chatId, messageId);
-    }
-    public async Task CreateGroupChat(ChatViewModel chatViewModel)
-    {
-        if(!chatViewModel.IsGroup)
+        if(!chat.IsGroup && (chat.Admin != user || msg.FromUser != user))
         {
-            await Clients.Caller.SendAsync("OnError", "Chat should be a group");
+            await Clients.Caller.SendAsync("OnError", "Permission denied");
+        }
+        //Deleting
+        await _unitOfWork.MessageRepository.Remove(msg);
+        await _unitOfWork.SaveChangesAsync();
+        //Sending to clients
+        var connectionsOfChat = await _unitOfWork.ConnectionRepository.GetAllConnectionsOfChat(chatId);        
+        await Clients.Clients((from t in connectionsOfChat 
+            where true select t.ConnectionID)
+            .ToList())
+            .SendAsync("OnDeleteMessage", chatId, messageId);
+    }
+    public async Task CreateChat(ChatViewModel chatViewModel)
+    {
+        
+        var chat = _unitOfWork.ChatRepository.AddChat(chatViewModel);
+        if(chat == null)
+        {
+            await Clients.Caller.SendAsync("OnError", "Chat wasn't created!");
             return;
         }
-        Chat chat = _mapper.Map<ChatViewModel, Chat>(chatViewModel);
-        await _dbContext.Chats.AddAsync(chat);
-        foreach(var usrId in chatViewModel.UsersId)
-        {
-            var usr = _dbContext.Users.FirstOrDefault(u => u.IntId == usrId);
-            if(usr == null)
-            {
-                _dbContext.Remove(chat);
-                await Clients.Caller.SendAsync("OnError", $"User with id={usrId} not found");
-                return;
-            }
-            ChatUser cu = new ChatUser{Chat = chat, User = usr};
-            usr.ChatUsers.Add(cu);
-            // usr.Chats.Add(chat);
-            chat.ChatUsers.Add(cu);
-            chat.Users.Add(usr);
-        }
-        await _dbContext.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
+        chatViewModel.Id = chat.Id;
         //Sending to clients
-        await _dbContext.Entry(chat).Collection(c => c.Users).Query().Where(u => u.Connections.Count > 0).LoadAsync();
-        foreach(var usr in chat.Users)
-            foreach(var cnctn in usr.Connections)
-                await Clients.Client(cnctn.ConnectionID).SendAsync("OnJoinChat", chat.Id); //REWRITE TO RETURN CHATVIEWMODEL
+        var connectionsOfChat = await _unitOfWork.ConnectionRepository.GetAllConnectionsOfChat(chat.Id);        
+        await Clients.Clients((from t in connectionsOfChat 
+            where true select t.ConnectionID)
+            .ToList())
+            .SendAsync("OnJoinChat", chatViewModel);
+        
     }
     public async Task JoinChat(int chatId, string userId)
     {
         var inviterId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
-        if(inviterId == null) 
+        var chat = await _unitOfWork.ChatRepository.GetChatInfoAsync(chatId);
+        //Validation
+        if(chat == null)
         {
-            await Clients.Caller.SendAsync("OnError", "Inviter not found");
-            return;
-        }
-        var inviter = await _dbContext.Users.FirstOrDefaultAsync(u => u.Id == inviterId);
-        if(inviter == null)
-        {
-            await Clients.Caller.SendAsync("OnError", "Inviter not found");
+            await Clients.Caller.SendAsync("OnError", "Chat not found");
             return;
         }
         var user = await _dbContext.Users.FirstOrDefaultAsync(u=> u.Id == userId);
@@ -146,104 +116,77 @@ public class MessengerHub: Hub
             await Clients.Caller.SendAsync("OnError", "User not found");
             return;
         }
-        var chat = await _dbContext.Chats.FirstOrDefaultAsync(ch => ch.Id == chatId);
-        if(chat == null)
+        if(chat.IsGroup && (chat.AdminId != inviterId && inviterId != userId) || 
+            !chat.IsGroup && chat.AdminId !=inviterId)
         {
-            await Clients.Caller.SendAsync("OnError", "Chat not found");
-            return;
+            await Clients.Caller.SendAsync("OnError", "Permission denied");
+            return;   
         }
-        ChatUser chatUser = new ChatUser{Chat = chat, User = user};
-        user.ChatUsers.Add(chatUser);
-        // user.Chats.Add(chat);
-        chat.ChatUsers.Add(chatUser);
-        chat.Users.Add(user);
-        _dbContext.SaveChanges();
-        //TODO: Notify others about joining user in this chat
+        //Saving to db
+        await _unitOfWork.ChatRepository.JoinChat(chatId, userId);
+        await _unitOfWork.SaveChangesAsync();
         //Sending to clients
-        await _dbContext.Entry(chat).Collection(c => c.Users).Query().Where(u => u.Id == inviterId).LoadAsync();
-        foreach(var usr in chat.Users)
-            foreach(var cnctn in usr.Connections)
-                await Clients.Client(cnctn.ConnectionID).SendAsync("OnJoinChat", chatId);
+        var connectionsOfUser =await _unitOfWork.ConnectionRepository.GetConnectionsOfUser(userId);
+        var chatViewModel = _mapper.Map<Chat, ChatViewModel>(chat);
+        await Clients.Clients((from t in connectionsOfUser 
+            where true select t.ConnectionID)
+            .ToList())
+            .SendAsync("OnJoinChat", chatViewModel);
+
+        var  connectionsOfChat = await _unitOfWork.ConnectionRepository.GetAllConnectionsOfChat(chatId);
+        await Clients.Clients((from t in connectionsOfChat 
+            where true select t.ConnectionID)
+            .ToList())
+            .SendAsync("OnAddedUserToChat", userId);
     }
     public async Task LeaveChat(int chatid)
-    {
+    {   
+        //Validation
         var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
-        if(userId == null) 
-        {
-            await Clients.Caller.SendAsync("OnError", "Inviter not found");
-            return;
-        }
-        var user = await _dbContext.Users.Include(u => u.ChatUsers).ThenInclude(cu => cu.Chat).FirstOrDefaultAsync(u => u.Id == userId);
-        if(user == null)
-        {
-            await Clients.Caller.SendAsync("OnError", "Inviter not found");
-            return;
-        }
-        var chatUser = user.ChatUsers.FirstOrDefault(ch => chatid == ch.ChatId);
-        if(chatUser == null)
+        var chatsOfUser = await _unitOfWork.ChatRepository.GetAllChatsOfUserAsync(userId!);
+        var chat = chatsOfUser?.FirstOrDefault(c => c.Id == chatid);
+        if(chat == null)
         {
             await Clients.Caller.SendAsync("OnError", "Chat is not found");
             return;
         }
-        user.ChatUsers.Remove(chatUser);
-        await _dbContext.SaveChangesAsync();
-        await Clients.Caller.SendAsync("OnLeaveChat", $"You left chat chatid={chatid}");
+        //Saving to the db
+        await _unitOfWork.ChatRepository.LeaveChat(chatid, userId!);
+        await _unitOfWork.SaveChangesAsync();
+        //Send to the client
+        var  connectionsOfChat = await _unitOfWork.ConnectionRepository.GetAllConnectionsOfChat(chatid);
+        await Clients.Clients((from t in connectionsOfChat 
+            where true select t.ConnectionID)
+            .ToList())
+            .SendAsync("OnLeaveChat", $"UserId={userId} left ChatId={chatid}");
     }
-    public async Task SetLastReadMessage(int chatId, int messageId) //TODO: optimize
+    public async Task SetLastReadMessage(int chatId, int messageId) 
     {
         var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
-        if(userId == null) 
+        var res = await _unitOfWork.MessageRepository.SetLastReadMessageAsync(userId!, chatId, messageId);
+        if(!res)
         {
-            await Clients.Caller.SendAsync("OnError", "User not found");
+            await Clients.Caller.SendAsync("OnError", "Something went wrong");
             return;
         }
-        var user = await _dbContext.Users.Include(u => u.ChatUsers).ThenInclude(cu=>cu.Chat).FirstOrDefaultAsync(u => u.Id == userId);
-        if(user == null)
-        {
-            await Clients.Caller.SendAsync("OnError", "User not found");
-            return;
-        }
-        var chatUser = user.ChatUsers.FirstOrDefault(ch => chatId == ch.ChatId);
-        if(chatUser == null)
-        {
-            await Clients.Caller.SendAsync("OnError", "Chat is not found");
-            return;
-        }
-        await _dbContext.Entry(chatUser.Chat).Collection(ch => ch.Messages).LoadAsync();
-        var msg = chatUser.Chat.Messages.FirstOrDefault(m => m.Id == messageId);
-        if(msg == null)
-        {
-            await Clients.Caller.SendAsync("OnError", "Message not found");
-        }
-        // await _dbContext.Entry(user).Collection(u => u.ChatUsers).LoadAsync();
-        // var chatUser = user.ChatUsers.FirstOrDefault(ch => ch.ChatId == chatId);
-        chatUser.LastReadMessage = msg;
-        await _dbContext.SaveChangesAsync();
+        await _unitOfWork.SaveChangesAsync();
+        var connectionsOfUser = await _unitOfWork.ConnectionRepository.GetConnectionsOfUser(userId!);
+        await Clients.Clients((from t in connectionsOfUser 
+            where true select t.ConnectionID)
+            .ToList())
+            .SendAsync("OnSetLastReadMessage", chatId, messageId);
     }
     public override async Task<Task> OnConnectedAsync()
     {
-        var name = Context.User?.Identity?.Name;
-        var user = _dbContext.Users
-            .Include(u => u.Connections)
-            .SingleOrDefault(u => u.UserName == name);
-        if (user == null)
-        {
-            await Clients.Caller.SendAsync("OnError", "User not found");
-            return base.OnConnectedAsync();
-        }
-        user.Connections.Add(new Connection
-        {
-            ConnectionID = Context.ConnectionId,
-        });
-        await _dbContext.SaveChangesAsync();
+        await _unitOfWork.ConnectionRepository.Add(Context.GetHttpContext()!.User
+            .FindFirstValue(ClaimTypes.NameIdentifier)!, Context.ConnectionId);
+        await _unitOfWork.SaveChangesAsync();
         return base.OnConnectedAsync();
     }
     public override async Task<Task> OnDisconnectedAsync(Exception? exception)
     {
-        var connections = await _dbContext.Connections.ToListAsync();
-        var connection = connections.FirstOrDefault(c => c.ConnectionID == Context.ConnectionId);
-        if(connection != null) connections.Remove(connection);
-        await _dbContext.SaveChangesAsync();
+        await _unitOfWork.ConnectionRepository.Remove(Context.ConnectionId);
+        await _unitOfWork.SaveChangesAsync();
         return base.OnDisconnectedAsync(exception);
     }
 }

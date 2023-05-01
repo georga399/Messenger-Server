@@ -6,8 +6,8 @@ using System.ComponentModel.DataAnnotations;
 
 public class User: IdentityUser
 {
-    [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
-    public int IntId{get; set;}
+    // [DatabaseGenerated(DatabaseGeneratedOption.Identity)]
+    // public int IntId{get; set;}
     //Chats where user is Admin
     public List<Chat> AdministrateChats {get; set;} = new();
     // User chats

@@ -27,7 +27,6 @@ public class ApplicationDbContext : IdentityDbContext<User>
         modelBuilder.Entity<Chat>()
         .HasOne(c=>c.Admin)
         .WithMany(u=>u.AdministrateChats);
-
-        modelBuilder.Entity<User>().HasIndex(u => u.IntId).IsUnique();
+        // modelBuilder.Entity<User>().HasIndex(u => u.IntId).IsUnique();
     }
 }

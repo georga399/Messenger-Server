@@ -19,13 +19,13 @@ public static class DbInitializer
         var user3Email = Lorem.Email();
         var user3 = new User{UserName = user3Email.Split('@')[0], Email = user3Email}; 
         await userManager.CreateAsync(user3, "Qwerty_1111");
-        var chat1 = new Chat{IsGroup = true, Title = "Group #1"};
-        db.Chats.Add(chat1);
-        chat1.Users.Add(user1); chat1.Users.Add(user2);
-        user1.ChatUsers.Add(new ChatUser{Chat = chat1});
-        user2.ChatUsers.Add(new ChatUser{Chat = chat1});
-        chat1.Admin = user1;
-        db.SaveChanges();
+        // var chat1 = new Chat{IsGroup = true, Title = "Group #1"};
+        // db.Chats.Add(chat1);
+        // // chat1.Users.Add(user1); chat1.Users.Add(user2);
+        // user1.ChatUsers.Add(new ChatUser{Chat = chat1});
+        // user2.ChatUsers.Add(new ChatUser{Chat = chat1});
+        // chat1.Admin = user1;
+        // db.SaveChanges();
         
     }
 }
