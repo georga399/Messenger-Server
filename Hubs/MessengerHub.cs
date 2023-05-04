@@ -45,9 +45,7 @@ public class MessengerHub: Hub
         //Sending to clients
         messageViewModel = _mapper.Map<Message, MessageViewModel>(message);
         var connectionsOfChat = await _unitOfWork.ConnectionRepository.GetAllConnectionsOfChat(chatId);
-        await Clients.Clients((from t in connectionsOfChat 
-            where true select t.ConnectionID)
-            .ToList())
+        await Clients.Clients(connectionsOfChat!.Select(c=>c.ConnectionID))
             .SendAsync("OnSendMessage", messageViewModel);
     }
     public async Task DeleteMessage(int chatId, int messageId) 
@@ -181,10 +179,12 @@ public class MessengerHub: Hub
         await _unitOfWork.ConnectionRepository.Add(Context.GetHttpContext()!.User
             .FindFirstValue(ClaimTypes.NameIdentifier)!, Context.ConnectionId);
         await _unitOfWork.SaveChangesAsync();
+        _logger.LogInformation($"User {Context.ConnectionId} was connected");
         return base.OnConnectedAsync();
     }
     public override async Task<Task> OnDisconnectedAsync(Exception? exception)
     {
+        _logger.LogInformation($"User {Context.ConnectionId} was disconnected");
         await _unitOfWork.ConnectionRepository.Remove(Context.ConnectionId);
         await _unitOfWork.SaveChangesAsync();
         return base.OnDisconnectedAsync(exception);

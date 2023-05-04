@@ -103,7 +103,6 @@ public class MessageRepository: IMessageRepository
         var user = await _dbContext.Users
             .Include(u => u.ChatUsers)
             .ThenInclude(cu => cu.Chat)
-            // .ThenInclude(c => c.Messages)
             .FirstOrDefaultAsync(u => u.Id == userId);
         if(user == null)
         {
@@ -136,11 +135,22 @@ public class MessageRepository: IMessageRepository
     {
         var user = await _dbContext.Users
         .Include(u => u.ChatUsers)
+        .ThenInclude(cu => cu.Chat)
         // .ThenInclude(cu => cu.LastReadMessage)
         .FirstOrDefaultAsync(u => u.Id == userId);
         var chatUser = user?.ChatUsers.FirstOrDefault(cu => cu.ChatId == chatId);
         var messageId = chatUser?.LastReadMessageId;
-        return messageId;
+        if(chatUser == null) return null;
+        if(messageId == null)
+        {
+            var chat = chatUser!.Chat;
+            await _dbContext.Entry(chat).Collection(c => c.Messages).LoadAsync();
+            var msg = chat?.Messages.Min(m => m.Id);
+            _logger.LogInformation($"Message {msg} was setted as last read");
+            return msg;
+        }
+        else
+            return messageId;
     }   
     public async Task<Message?> GetMessageByIdInChat(int messageId, int chatId)
     {

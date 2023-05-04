@@ -7,6 +7,4 @@ public class ChatUser
     public Chat Chat{get; set;} = null!;
     public int? LastReadMessageId{get; set;}    
     public Message? LastReadMessage{get; set;}
-    // public int? NewestMessageId{get; set;} // TODO: Delete this field
-    // public Message? NewestMessage{get; set;} // TODO: Delete this field
 }
