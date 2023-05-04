@@ -5,59 +5,21 @@ public class UnitOfWork: IUnitOfWork
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IMapper _mapper;
-    public UnitOfWork(ApplicationDbContext dbContext, IMapper mapper)
+    public IChatRepository ChatRepository{get; private set;}
+    public IUserRepository UserRepository{get; private set;}
+    public IMessageRepository MessageRepository{get; private set;}
+    public IConnectionRepository ConnectionRepository{get; private set;}
+
+    public UnitOfWork(ApplicationDbContext dbContext, IMapper mapper, 
+        IChatRepository chatRepository, IUserRepository userRepository,
+        IMessageRepository messageRepository, IConnectionRepository connectionRepository)
     {
         _dbContext = dbContext;
         _mapper = mapper;
-    }
-    private IChatRepository? _chatRepository;
-    private IUserRepository? _userRepository;
-    private IMessageRepository? _messageRepository;
-    private IConnectionRepository? _connectionRepository;
-
-    public IUserRepository UserRepository
-    {
-        get
-        {
-            if(_userRepository == null)
-            {
-                _userRepository = new UserRepository(_dbContext);
-            }
-            return _userRepository;
-        }
-    }
-    public IChatRepository ChatRepository
-    {
-        get
-        {
-            if(_chatRepository == null)
-            {
-                _chatRepository = new ChatRepository(_dbContext, _mapper);
-            }
-            return _chatRepository;
-        }
-    }
-    public IMessageRepository MessageRepository
-    {
-        get
-        {
-            if(_messageRepository == null)
-            {
-                _messageRepository = new MessageRepository(_dbContext, _mapper);
-            }
-            return _messageRepository;
-        }
-    }
-    public IConnectionRepository ConnectionRepository
-    {
-        get
-        {
-            if(_connectionRepository == null)
-            {
-                _connectionRepository = new ConnectionRepository(_dbContext);
-            }
-            return _connectionRepository;
-        }
+        ChatRepository = chatRepository;
+        UserRepository = userRepository;
+        MessageRepository = messageRepository;
+        ConnectionRepository = connectionRepository;
     }
     public Task SaveChangesAsync()
     {

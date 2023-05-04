@@ -9,25 +9,29 @@ public class ChatRepository: IChatRepository
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IMapper _mapper;
-    public ChatRepository(ApplicationDbContext dbContext, IMapper mapper)
+    private readonly ILogger<ChatRepository> _logger;
+    public ChatRepository(ApplicationDbContext dbContext, IMapper mapper, ILogger<ChatRepository> logger)
     {
         _mapper = mapper;
         _dbContext = dbContext;
+        _logger = logger;
     }
     public Chat? AddChat(ChatViewModel chatViewModel) 
     {
         Chat chat = _mapper.Map<ChatViewModel, Chat>(chatViewModel);
         bool addedAdmin = false;
+        _dbContext.Chats.Add(chat);
         foreach(var usrId in chatViewModel.UsersId)
         {
+            _logger.LogInformation($"Adding user = {usrId} to the chat {chat.Title}");
             var usr = _dbContext.Users.FirstOrDefault(u => u.Id == usrId);
-            if(usr == null)
+            if(usr == null) //TODO: DELETING CHAT
             {
-                _dbContext.Remove(chat);
-                return null;
+                _logger.LogInformation($"User = {usrId} not found in chat {chat.Title}");                
+                continue;
             }
             ChatUser cu = new ChatUser{Chat = chat, User = usr};
-            usr.ChatUsers.Add(cu);
+            // usr.ChatUsers.Add(cu);
             chat.ChatUsers.Add(cu);
             if(usrId == chatViewModel.AdminId)
             {
@@ -38,7 +42,7 @@ public class ChatRepository: IChatRepository
         }
         if(!addedAdmin)
         {
-            _dbContext.Remove(chat);
+            _dbContext.Chats.Remove(chat);
             return null;
         }
         return chat;

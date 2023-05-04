@@ -8,10 +8,13 @@ public class MessageRepository: IMessageRepository
 {
     private readonly ApplicationDbContext _dbContext;
     private readonly IMapper _mapper;
-    public MessageRepository(ApplicationDbContext dbContext, IMapper mapper)
+    private readonly ILogger<MessageRepository> _logger;
+    public MessageRepository(ApplicationDbContext dbContext, IMapper mapper,
+        ILogger<MessageRepository> logger)
     {
         _dbContext = dbContext;
         _mapper = mapper;
+        _logger = logger;
     }
     public async Task Add(Message message)
     {
@@ -58,6 +61,10 @@ public class MessageRepository: IMessageRepository
             .Include(c => c.Messages)
             .FirstOrDefaultAsync(c => c.Id == chatId);
         chat?.Messages.OrderBy(m => m.Id);
+        if(chat == null)
+        {
+            return null;
+        }
         Message? fromMsg;
         if(range > 0)
         {
@@ -65,53 +72,57 @@ public class MessageRepository: IMessageRepository
         }
         else if(range < 0)
         {
-            fromMsg = chat?.Messages.Where(m => m.Id <= messageId).FirstOrDefault();
+            fromMsg = chat?.Messages.Where(m => m.Id <= messageId).LastOrDefault();
         }   
         else 
         {
             return new();
         }
-        // var fromMsg = chat?.Messages.FirstOrDefault(m => m.Id == messageId);
         if(fromMsg == null)
         {
-            // TODO: Notify about it
             return null;
         }
         var fromMsgIndex = fromMsg.Chat!.Messages.FindIndex(m => m == fromMsg);
-        if(fromMsgIndex + range >= fromMsg.Chat.Messages.Count || fromMsgIndex + range + 1 < 0) 
-        {
-            //TODO: Notify about it
-            return null;
-        }
         List<Message> messages;
+        _logger.LogInformation($"fromMsgIndex={fromMsgIndex}, range={range}");
         if(range > 0)
-            messages = fromMsg.Chat.Messages.GetRange(fromMsgIndex, range); 
+        {
+            int countOfMessages = Math.Min(range, chat!.Messages.Count);
+            messages = fromMsg.Chat.Messages.GetRange(fromMsgIndex, countOfMessages); 
+        }
         else
-            messages = fromMsg.Chat.Messages.GetRange(fromMsgIndex + range, -range);
+        {
+            int countOfMessages = Math.Min(-range, chat!.Messages.Count);
+            messages = fromMsg.Chat.Messages.GetRange(fromMsgIndex - countOfMessages + 1, countOfMessages);
+        }
         return messages;
     }
     public async Task<bool> SetLastReadMessageAsync(string userId, int chatId, int messageId)
     {
+        _logger.LogInformation("Setting last read message");
         var user = await _dbContext.Users
             .Include(u => u.ChatUsers)
             .ThenInclude(cu => cu.Chat)
-            .ThenInclude(c => c.Messages)
+            // .ThenInclude(c => c.Messages)
             .FirstOrDefaultAsync(u => u.Id == userId);
         if(user == null)
         {
             return false;
         }
         var chatUser = user.ChatUsers.FirstOrDefault(cu => cu.ChatId == chatId);
-        if(chatUser == null)
+        var chat = chatUser?.Chat;
+        if(chat == null || chatUser == null)
         {
             return false;
         }
-        var msg = chatUser.Chat.Messages.FirstOrDefault(m => m.Id == messageId);
+        await _dbContext.Entry(chat).Collection(c => c.Messages).LoadAsync();
+        var msg = chat.Messages.FirstOrDefault(m => m.Id == messageId);
         if(msg == null)
         {
             return false;
         }
         chatUser.LastReadMessage = msg;
+        chatUser.LastReadMessageId = msg.Id;
         return true;
     }
     public async Task<int?> GetNewestMessageIdAsync(int chatId)
@@ -125,7 +136,7 @@ public class MessageRepository: IMessageRepository
     {
         var user = await _dbContext.Users
         .Include(u => u.ChatUsers)
-        .ThenInclude(cu => cu.LastReadMessageId)
+        // .ThenInclude(cu => cu.LastReadMessage)
         .FirstOrDefaultAsync(u => u.Id == userId);
         var chatUser = user?.ChatUsers.FirstOrDefault(cu => cu.ChatId == chatId);
         var messageId = chatUser?.LastReadMessageId;
