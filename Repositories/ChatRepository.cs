@@ -97,13 +97,11 @@ public class ChatRepository: IChatRepository
         .FirstOrDefaultAsync(u=> u.Id == userId);
         if(user == null)
         {
-            //TODO: Notify about user not found
             return false;
         }
         var chatUser = user.ChatUsers.FirstOrDefault(cu => cu.ChatId == ChatId);
         if(chatUser == null)
         {
-            //TODO: Notify about chat Not founded
             return false;
         }
         user.ChatUsers.Remove(chatUser);
