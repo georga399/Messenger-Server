@@ -75,7 +75,8 @@ public class ChatController: ControllerBase
         }
         if(!_fileValidator.IsValidPicture(file))
             return BadRequest("File validation failed!");
-        var fileName = chat.Id.ToString();
+        var fileName = chat.Id.ToString() + '.' + file.FileName.Split('.')[1];
+        _logger.LogInformation($"Set avatar for chat {fileName}");
         var folderPath = Path.Combine(_environment.ContentRootPath, "uploads/chatsavatars");
         var filePath = Path.Combine(folderPath, fileName);
         if (!Directory.Exists(folderPath))
@@ -84,15 +85,16 @@ public class ChatController: ControllerBase
         {
             await file.CopyToAsync(fileStream);
         }
-        chat!.Avatar = filePath;
+        var uploadUri = $"{Request.Scheme}://{Request.Host}/api/chat/ava/{fileName}";
+        chat!.Avatar = uploadUri;
         await _unitOfWork.SaveChangesAsync();
-        return Accepted(fileName);
+        return Accepted(uploadUri);
     }
-    [HttpGet("chatava/{chatId:int}")]
-    public async Task<IActionResult> GetAvatarOfChat(int chatId)
+    [HttpGet("chatava/{avatar}")]
+    public async Task<IActionResult> GetAvatarOfChat(string avatar)
     {
         var folderPath = Path.Combine(_environment.ContentRootPath, "uploads/chatsavatars");
-        var filePath = Path.Combine(folderPath, chatId.ToString());
+        var filePath = Path.Combine(folderPath, avatar);
         if(filePath == null)
         {
             return BadRequest("File not found");

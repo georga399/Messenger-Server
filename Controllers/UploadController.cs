@@ -10,10 +10,13 @@ public class UploadController: ControllerBase
 {
     private readonly IWebHostEnvironment _environment;
     private readonly IFileValidator _fileValidator;
-    public UploadController(IWebHostEnvironment environment, IFileValidator fileValidator)
+    private readonly ILogger<UploadController> _logger;
+    public UploadController(IWebHostEnvironment environment, 
+        IFileValidator fileValidator, ILogger<UploadController> logger)
     {
         _environment = environment;
         _fileValidator = fileValidator;
+        _logger = logger;
     }
     [HttpPost("attach")]
     public async Task<IActionResult> UploadAttachment(IFormFile file)
@@ -29,7 +32,9 @@ public class UploadController: ControllerBase
         {
             await file.CopyToAsync(fileStream);
         }
-        return Accepted(fileName);
+        var uploadUri = $"{Request.Scheme}://{Request.Host}/api/upload/attach/{fileName}";
+        _logger.LogInformation($"File uploaded to {uploadUri}");
+        return Accepted(uploadUri);
     }   
     [HttpGet("attach/{fileName}")]
     public async Task<IActionResult> GetAttachment(string fileName)

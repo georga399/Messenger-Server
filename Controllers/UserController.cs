@@ -62,7 +62,7 @@ public class UserController: ControllerBase
         var user = _unitOfWork.UserRepository.GetById(userId!);
         if(!_fileValidator.IsValidPicture(file))
             return BadRequest("File validation failed!");
-        var fileName = userId!;
+        var fileName = userId! + '.' + file.FileName.Split('.')[1];
         var folderPath = Path.Combine(_environment.ContentRootPath, "uploads/usersavatars");
         var filePath = Path.Combine(folderPath, fileName);
         if (!Directory.Exists(folderPath))
@@ -71,9 +71,11 @@ public class UserController: ControllerBase
         {
             await file.CopyToAsync(fileStream);
         }
-        user!.Avatar = filePath;
+        var uploadUri = $"{Request.Scheme}://{Request.Host}/api/user/ava/{fileName}";
+        _logger.LogInformation($"Avatar of user uploaded to {uploadUri}");
+        user!.Avatar = uploadUri;
         await _unitOfWork.SaveChangesAsync();
-        return Accepted(fileName);
+        return Accepted(uploadUri);
     }
     [HttpGet("ava/{userId}")]
     public async Task<IActionResult> GetAvatarOfUser(string userId)
