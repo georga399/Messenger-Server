@@ -98,6 +98,28 @@ public class MessengerHub: Hub
             .SendAsync("OnJoinChat", chatViewModel);
         
     }
+    public async Task DeleteChat(int chatId)
+    {
+        var userId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
+        var user = _unitOfWork.UserRepository.GetById(userId!);
+        var chatsOfUser = await _unitOfWork.ChatRepository.GetAllChatsOfUserAsync(userId!);
+        var chat = chatsOfUser!.FirstOrDefault(c => c.Id == chatId);
+        if(chat == null)
+        {
+            await Clients.Caller.SendAsync("OnError", "Chat not found");
+            return;
+        }
+        var res = await _unitOfWork.ChatRepository.DeleteChatIfAdmin(chatId, userId!);
+        if(!res)
+        {
+            await Clients.Caller.SendAsync("OnError", "Permission denied");
+            return;
+        }
+        await _unitOfWork.SaveChangesAsync();
+        var connectionsOfChat = await _unitOfWork.ConnectionRepository.GetAllConnectionsOfChat(chat.Id);
+        await Clients.Clients(connectionsOfChat!.Select(c => c.ConnectionID))
+            .SendAsync("OnDeleteChat", chatId);
+    }
     public async Task JoinChat(int chatId, string userId)
     {
         var inviterId = Context.User?.FindFirstValue(ClaimTypes.NameIdentifier);
@@ -148,15 +170,21 @@ public class MessengerHub: Hub
             await Clients.Caller.SendAsync("OnError", "Chat is not found");
             return;
         }
-        //Saving to the db
-        await _unitOfWork.ChatRepository.LeaveChat(chatid, userId!);
-        await _unitOfWork.SaveChangesAsync();
-        //Send to the client
         var  connectionsOfChat = await _unitOfWork.ConnectionRepository.GetAllConnectionsOfChat(chatid);
-        await Clients.Clients((from t in connectionsOfChat 
-            where true select t.ConnectionID)
-            .ToList())
-            .SendAsync("OnLeaveChat", $"UserId={userId} left ChatId={chatid}");
+
+        if(await _unitOfWork.ChatRepository.DeleteChatIfAdmin(chatid, userId!))
+        {
+            await _unitOfWork.SaveChangesAsync();
+            await Clients.Clients(connectionsOfChat!.Select(c => c.ConnectionID))
+            .SendAsync("OnDeleteChat", chatid);
+        }
+        else
+        {
+            await _unitOfWork.ChatRepository.LeaveChat(chatid, userId!);
+            await _unitOfWork.SaveChangesAsync();
+            await Clients.Clients(connectionsOfChat!.Select(c => c.ConnectionID))
+            .SendAsync("OnLeaveChat", userId, chatid);
+        }
     }
     public async Task SetLastReadMessage(int chatId, int messageId) 
     {

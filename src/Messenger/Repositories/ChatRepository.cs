@@ -30,7 +30,7 @@ public class ChatRepository: IChatRepository
                 _logger.LogInformation($"User = {usrId} not found in chat {chat.Title}");                
                 continue;
             }
-            ChatUser cu = new ChatUser{Chat = chat, User = usr};
+            ChatUser cu = new ChatUser{Chat = chat, User = usr, UserId = usr.Id, ChatId = chat.Id};
             // usr.ChatUsers.Add(cu);
             chat.ChatUsers.Add(cu);
             if(usrId == chatViewModel.AdminId)
@@ -66,34 +66,42 @@ public class ChatRepository: IChatRepository
             return true;
         }
     }
-    public async Task JoinChat(int ChatId, string userId)
+    public async Task<bool> JoinChat(int ChatId, string userId)
     {        
         var user = await _dbContext.Users
+        .Include(u => u.ChatUsers)
         .FirstOrDefaultAsync(u=> u.Id == userId);
         if(user == null)
         {
-            //TODO: Notify about user not found
-            return;
+            return false;
+        }
+        var existedChatUser = user.ChatUsers.FirstOrDefault(cu => cu.ChatId == ChatId);
+        if(existedChatUser != null)
+        {
+            return false;
         }
         var chat = await _dbContext.Chats.FirstOrDefaultAsync(ch => ch.Id == ChatId);
         if(chat == null)
         {
-            //TODO: Notify about chat not found
-            return;
+            return false;
         }
         ChatUser cu = new ChatUser()
         {
             Chat = chat,
-            User = user
+            User = user,
+            // ChatId = chat.Id,
+            // UserId = user.Id
         };
         chat.ChatUsers.Add(cu);
         user.ChatUsers.Add(cu);
+        return true;
     }
     public async Task<bool> LeaveChat(int ChatId, string userId) //TODO: Explicit downloading
     {
         var user = await _dbContext.Users
         .Include(u => u.ChatUsers)
         .ThenInclude(cu => cu.Chat)
+        .ThenInclude(ch => ch.Admin)
         .FirstOrDefaultAsync(u=> u.Id == userId);
         if(user == null)
         {
@@ -106,6 +114,10 @@ public class ChatRepository: IChatRepository
         }
         user.ChatUsers.Remove(chatUser);
         chatUser.Chat.ChatUsers.Remove(chatUser);
+        if(chatUser.Chat.Admin!.Id == userId)
+        {
+            _dbContext.Chats.Remove(chatUser.Chat);
+        }
         return true;        
     }
     public async Task<List<ChatUser>?> GetAllMembers(int ChatId)
@@ -116,7 +128,6 @@ public class ChatRepository: IChatRepository
         .FirstOrDefaultAsync(c => c.Id == ChatId);
         if(chat == null)
         {
-            //Notify about chat == null
             return null;
         }
         return chat.ChatUsers;
@@ -136,10 +147,9 @@ public class ChatRepository: IChatRepository
         .FirstOrDefaultAsync(u => u.Id == userId);
         if(user == null)
         {
-            //TODO: Notify about user not found
             return null;
         }
-        return (from t in user.ChatUsers where true select t.Chat).ToList();
+        return user.ChatUsers.Select(cu => cu.Chat).ToList();
     }
     public async Task<bool> SetAdmin(int chatId, string userId) //TODO: Explicit loading
     {
@@ -150,17 +160,33 @@ public class ChatRepository: IChatRepository
         .FirstOrDefaultAsync(c => c.Id == chatId);
         if(chat == null)
         {
-            //TODO: Notify about it
             return false;
         }
         var chatUser = chat.ChatUsers.FirstOrDefault(cu => cu.UserId == userId);
         if(chatUser == null)
         {
-            //TODO: Notify about it
+            return false;
+        }
+        if(chat.Admin!.Id == userId)
+        {
             return false;
         }
         chat.Admin?.AdministrateChats.Remove(chat);
         chat.Admin = chatUser.User;
+        return true;
+    }
+    public async Task<bool> DeleteChatIfAdmin(int chatId, string userId)
+    {
+        var user = await _dbContext.Users
+        .Include(u => u.ChatUsers)
+        .ThenInclude(cu => cu.Chat)
+        .ThenInclude(c => c.Admin)
+        .FirstOrDefaultAsync(u => u.Id == userId);
+        if(user == null) return false;
+        var chatUser = user.ChatUsers.FirstOrDefault(cu => cu.ChatId == chatId);
+        if(chatUser == null) return false;
+        if(chatUser.Chat.AdminId != userId) return false;
+        _dbContext.Chats.Remove(chatUser.Chat);
         return true;
     }
 }

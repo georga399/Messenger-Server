@@ -11,7 +11,7 @@ public class UserRepository: IUserRepository
 
     public User? GetById(string userId)
     {
-        return _dbContext.Users.FirstOrDefault(u => u.Id == userId);
+        return  _dbContext.Users.FirstOrDefault(u => u.Id == userId);
     }
     public User? GetByName(string userName)
     {
