@@ -43,7 +43,7 @@ public class AuthController: ControllerBase
                 }
                 return BadRequest(ModelState);
             }
-            return Ok("Successful registration");
+            return Accepted("Successful registration");
         }
         catch (Exception ex)
         {
@@ -70,14 +70,13 @@ public class AuthController: ControllerBase
     public async Task<IActionResult> Logout()
     {
         await _signInManager.SignOutAsync();
-        return Ok("Cookies was deleted");
+        return Accepted("Cookies was deleted");
     }
 
     [HttpGet("test")]
     [Authorize]
     public IActionResult Test()
     {
-        
         return Ok(HttpContext.User.FindFirstValue(ClaimTypes.Name));
     }
 }
