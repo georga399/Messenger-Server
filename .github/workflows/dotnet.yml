@@ -25,5 +25,4 @@ jobs:
     - name: Build
       run: dotnet build ".\src\Messenger" --no-restore
     - name: Test
-      run: dotnet restore ".\test\Messenger.Tests"
-      run: dotnet test ".\test\Messenger.Tests" --no-build --verbosity normal
+      run: dotnet restore ".\test\Messenger.Tests" & dotnet test ".\test\Messenger.Tests" --no-build --verbosity normal
