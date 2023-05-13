@@ -19,6 +19,7 @@ public class AuthControllerTests
 
     public AuthControllerTests()
     {
+        //Arrange
         _userManager = A.Fake<UserManager<User>>();
         _logger = A.Fake<ILogger<AuthController>>();
         _signInManager = A.Fake<SignInManager<User>>();
