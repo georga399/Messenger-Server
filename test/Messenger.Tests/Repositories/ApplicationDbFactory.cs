@@ -14,7 +14,7 @@ public class ApplicationDbFactory
         var dbContext = new ApplicationDbContext(options);
         dbContext.Database.EnsureCreated();
         //Seed Data       
-        var users = new List<User>();
+        var users = new List<User>(); // Adding users
         for(int i = 0; i<10; i++)
         {
             var user = new User()
@@ -26,7 +26,7 @@ public class ApplicationDbFactory
             users.Add(user);
         }
         dbContext.Users.AddRange(users);
-        var chats = new List<Chat>();
+        var chats = new List<Chat>(); //Adding chats
         for(int i = 0; i<5; i++)
         {
             var chat = new Chat()
@@ -49,12 +49,33 @@ public class ApplicationDbFactory
             dbContext.Chats.Add(chat);
         }
         
-        dbContext.Users.Add(new User()
+        dbContext.Users.Add(new User() //Adding user without chats
         {
                 Id = "#" + (100+1).ToString(),
                 UserName = "User" + (100+1).ToString(),
                 Email = "User" + (100+1).ToString() + "@example.com"
         });
+        
+        var messages = new List<Message>(); // Adding messages
+        for(int i = 0; i<10; i++)
+        {
+            foreach(var ch in chats)
+            {
+                foreach(var usr in users)
+                {
+                    var msg = new Message()
+                    {
+                        FromUser = usr,
+                        Chat = ch,
+                        Content = "Message in chatId=" + ch.Id.ToString() + 
+                         " from userId=" + usr.Id.ToString() + " Number=" + (i+1).ToString(),
+                    };
+                    messages.Add(msg);
+                }
+            }
+        }
+        dbContext.Messages.AddRange(messages);
+        
         dbContext.SaveChanges();
         // Console.WriteLine(user.Id);
         return dbContext;            

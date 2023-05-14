@@ -1,6 +1,4 @@
-using FakeItEasy;
 using Microsoft.AspNetCore.Http;
-using FluentAssertions;
 using Microsoft.AspNetCore.Identity;
 using System.Security.Claims;
 using AutoMapper; 
@@ -47,7 +45,6 @@ public class AuthControllerTests
         var result = authController.Test();
         // Assert
         result.Should().BeOfType(typeof(OkObjectResult));
-        result.Equals(username);
     }
 
     [Fact]

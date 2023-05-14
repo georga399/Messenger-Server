@@ -35,25 +35,25 @@ public class MessageRepository: IMessageRepository
         }
         msg = message; //
     }
-    public async Task Remove(Message message)
+    public async Task<bool> Remove(Message message)
     {
-        var msg = await _dbContext.Messages.FindAsync(message);
+        var msg = await _dbContext.Messages.FirstOrDefaultAsync(m => m.Id == message.Id);
         if(msg == null)
         {
-            //TODO: Notify about null
-            return;
+            return false;
         }
         _dbContext.Messages.Remove(msg);
+        return true;
     }
-    public async Task Remove(int messageId)
+    public async Task<bool> Remove(int messageId)
     {
         var msg = await _dbContext.Messages.FirstOrDefaultAsync(m => m.Id == messageId);
         if(msg == null)
         {
-            //TODO: Notify about null
-            return;
+            return false;
         }
         _dbContext.Messages.Remove(msg);
+        return true;
     }
     public async Task<List<Message>?> GetMessagesRangeAsync(int chatId, int messageId, int range) //TODO: TEST IT
     {

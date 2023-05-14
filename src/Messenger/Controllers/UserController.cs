@@ -26,8 +26,7 @@ public class UserController: ControllerBase
     private readonly IUnitOfWork _unitOfWork;
     private readonly IWebHostEnvironment _environment;
 
-    public UserController(ILogger<UserController> logger, 
-        ApplicationDbContext dbContext, 
+    public UserController(ILogger<UserController> logger,  
         IMapper mapper, IFileValidator fileValidator, IWebHostEnvironment environment,
         IUnitOfWork unitOfWork, UserManager<User> userManager)
     {
@@ -44,7 +43,7 @@ public class UserController: ControllerBase
         var _usr = _unitOfWork.UserRepository.GetById(id);
         if(_usr == null) return BadRequest("Not found");
         UserViewModel usr = _mapper.Map<User, UserViewModel>(_usr);
-        return Accepted(usr);
+        return Ok(usr);
     } 
     [HttpDelete("deleteuser")]
     public async Task<IActionResult> DeleteUser()

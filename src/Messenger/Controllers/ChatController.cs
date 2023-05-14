@@ -21,20 +21,15 @@ namespace Messenger.Controllers;
 public class ChatController: ControllerBase
 {
     private readonly ILogger<ChatController> _logger;
-    private readonly ApplicationDbContext _dbContext;
     private readonly IUnitOfWork _unitOfWork;
-    private readonly IHubContext<MessengerHub> _hubContext;
     private readonly IMapper _mapper;
     private readonly IFileValidator _fileValidator;
     private readonly IWebHostEnvironment _environment;
 
-    public ChatController(ILogger<ChatController> logger, ApplicationDbContext dbContext, 
-        IHubContext<MessengerHub> hubContext, IMapper mapper,
+    public ChatController(ILogger<ChatController> logger, IMapper mapper,
         IFileValidator fileValidator, IUnitOfWork unitOfWork, IWebHostEnvironment environment)
     {
         _logger= logger;
-        _dbContext = dbContext;
-        _hubContext = hubContext;
         _mapper = mapper;
         _fileValidator = fileValidator;
         _unitOfWork = unitOfWork;
@@ -46,7 +41,7 @@ public class ChatController: ControllerBase
         var _chat = await _unitOfWork.ChatRepository.GetChatInfoAsync(id);
         if(_chat == null) return BadRequest("Not found");
         ChatViewModel chat = _mapper.Map<Chat, ChatViewModel>(_chat);
-        return Accepted(chat);
+        return Ok(chat);
     }
     [HttpGet("getuserschats")]
     public async Task<IActionResult> GetUsersChats()

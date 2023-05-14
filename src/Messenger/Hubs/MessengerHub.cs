@@ -12,14 +12,12 @@ namespace Messenger.Hubs;
 [Authorize]
 public class MessengerHub: Hub
 {
-    private readonly ApplicationDbContext _dbContext;
     private readonly IMapper _mapper;
     private readonly ILogger<MessengerHub> _logger;
     private readonly IUnitOfWork _unitOfWork;
-    public MessengerHub(ApplicationDbContext dbContext, IMapper mapper, 
+    public MessengerHub(IMapper mapper, 
         ILogger<MessengerHub> logger, IUnitOfWork unitOfWork)
     {
-        _dbContext = dbContext;
         _mapper = mapper;
         _logger = logger;
         _unitOfWork = unitOfWork;
@@ -74,9 +72,7 @@ public class MessengerHub: Hub
         await _unitOfWork.SaveChangesAsync();
         //Sending to clients
         var connectionsOfChat = await _unitOfWork.ConnectionRepository.GetAllConnectionsOfChat(chatId);        
-        await Clients.Clients((from t in connectionsOfChat 
-            where true select t.ConnectionID)
-            .ToList())
+        await Clients.Clients(connectionsOfChat!.Select(c => c.ConnectionID))
             .SendAsync("OnDeleteMessage", chatId, messageId);
     }
     public async Task CreateChat(ChatViewModel chatViewModel)
@@ -92,9 +88,7 @@ public class MessengerHub: Hub
         chatViewModel.Id = chat.Id;
         //Sending to clients
         var connectionsOfChat = await _unitOfWork.ConnectionRepository.GetAllConnectionsOfChat(chat.Id);        
-        await Clients.Clients((from t in connectionsOfChat 
-            where true select t.ConnectionID)
-            .ToList())
+        await Clients.Clients(connectionsOfChat!.Select(c => c.ConnectionID))
             .SendAsync("OnJoinChat", chatViewModel);
         
     }
@@ -130,7 +124,7 @@ public class MessengerHub: Hub
             await Clients.Caller.SendAsync("OnError", "Chat not found");
             return;
         }
-        var user = await _dbContext.Users.FirstOrDefaultAsync(u=> u.Id == userId);
+        var user = _unitOfWork.UserRepository.GetById(userId);
         if(user == null)
         {
             await Clients.Caller.SendAsync("OnError", "User not found");
@@ -148,15 +142,11 @@ public class MessengerHub: Hub
         //Sending to clients
         var connectionsOfUser =await _unitOfWork.ConnectionRepository.GetConnectionsOfUser(userId);
         var chatViewModel = _mapper.Map<Chat, ChatViewModel>(chat);
-        await Clients.Clients((from t in connectionsOfUser 
-            where true select t.ConnectionID)
-            .ToList())
+        await Clients.Clients(connectionsOfUser!.Select(c => c.ConnectionID))
             .SendAsync("OnJoinChat", chatViewModel);
 
         var  connectionsOfChat = await _unitOfWork.ConnectionRepository.GetAllConnectionsOfChat(chatId);
-        await Clients.Clients((from t in connectionsOfChat 
-            where true select t.ConnectionID)
-            .ToList())
+        await Clients.Clients(connectionsOfChat!.Select(c => c.ConnectionID))
             .SendAsync("OnAddedUserToChat", userId);
     }
     public async Task LeaveChat(int chatid)
@@ -197,9 +187,7 @@ public class MessengerHub: Hub
         }
         await _unitOfWork.SaveChangesAsync();
         var connectionsOfUser = await _unitOfWork.ConnectionRepository.GetConnectionsOfUser(userId!);
-        await Clients.Clients((from t in connectionsOfUser 
-            where true select t.ConnectionID)
-            .ToList())
+        await Clients.Clients(connectionsOfUser!.Select(c => c.ConnectionID))
             .SendAsync("OnSetLastReadMessage", chatId, messageId);
     }
     public override async Task<Task> OnConnectedAsync()

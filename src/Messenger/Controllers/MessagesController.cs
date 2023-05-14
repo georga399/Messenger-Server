@@ -20,15 +20,13 @@ public class MessagesController: ControllerBase
 {
     private readonly ILogger<MessagesController> _logger;
     private readonly ApplicationDbContext _dbContext;
-    private readonly IHubContext<MessengerHub> _hubContext;
     private readonly IMapper _mapper;
     private readonly IUnitOfWork _unitOfWork;
     public MessagesController(ILogger<MessagesController> logger, ApplicationDbContext dbContext, 
-        IHubContext<MessengerHub> hubContext, IMapper mapper, IUnitOfWork unitOfWork)
+        IMapper mapper, IUnitOfWork unitOfWork)
     {
         _logger= logger;
         _dbContext = dbContext;
-        _hubContext = hubContext;
         _mapper = mapper;
         _unitOfWork = unitOfWork;
     }
@@ -54,7 +52,7 @@ public class MessagesController: ControllerBase
         if(messages == null) return BadRequest("Something went wrong");
         var messageViewModels = _mapper.Map<List<Message>, List<MessageViewModel>>(messages
             .OrderBy(m => m.Timestamp).ToList());
-        return Accepted(messageViewModels);
+        return Ok(messageViewModels);
     }
     [HttpGet("getlastreadmessageid/chatid={chatid}")]
     public async Task<IActionResult> GetLastReadMessageId(int chatid)
@@ -62,7 +60,7 @@ public class MessagesController: ControllerBase
         // var user = await _dbContext.Users.Include(u => u.ChatUsers).FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
         var userId = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
         var messageId = await _unitOfWork.MessageRepository.GetLastReadMessageIdAsync(userId!, chatid);
-        return Accepted(messageId);
+        return Ok(messageId);
     }
     [HttpGet("getnewestmessageid/chatid={chatid}")]
     public async Task<IActionResult> GetNewestMessageId(int chatid)
@@ -70,6 +68,6 @@ public class MessagesController: ControllerBase
         var userId = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
         var messageId = await _unitOfWork.MessageRepository.GetNewestMessageIdAsync(chatid);
         if(messageId == null) return BadRequest("Chat not found");
-        return Accepted(messageId);    
+        return Ok(messageId);    
     }
 }
