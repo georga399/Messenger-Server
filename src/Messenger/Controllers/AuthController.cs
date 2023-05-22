@@ -64,7 +64,7 @@ public class AuthController: ControllerBase
             return Unauthorized();
         }
         await _signInManager.PasswordSignInAsync(model.UserName, model.Password, false, false);
-        return Ok("Successful authorization");
+        return Ok(user.Id);
     }
     [HttpGet("logout")]
     public async Task<IActionResult> Logout()

@@ -43,7 +43,7 @@ public class MessagesController: ControllerBase
         if(chatUser == null) return BadRequest("Chat not found");
         var messages = _mapper.Map<List<Message>, List<MessageViewModel>>(chatUser.Chat.Messages
             .OrderByDescending(m => m.Timestamp).ToList());
-        return Accepted(messages);
+        return Ok(messages);
     }
     [HttpGet("getmessagesrange/chatid={chatid:int}/frommsgid={messageid:int}-range={range:int}")]
     public async Task<IActionResult> GetMessagesRange(int chatid, int messageid, int range)
