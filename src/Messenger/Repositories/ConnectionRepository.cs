@@ -22,9 +22,12 @@ public class ConnectionRepository: IConnectionRepository
     }
     public async Task Remove(string connectionId)
     {
-        var connections = await _dbContext.Connections.ToListAsync();
-        var connection = connections.FirstOrDefault(c => c.ConnectionID == connectionId);
-        if(connection != null) connections.Remove(connection);
+        Connection? connection = _dbContext.Connections
+            .Where(c => c.ConnectionID == connectionId)
+            .FirstOrDefault();
+        if(connection == null) return;
+        _dbContext.Connections.Remove(connection);
+        await _dbContext.SaveChangesAsync();
     }
     public async Task<List<Connection>?> GetConnectionsOfUser(string userId)
     {
