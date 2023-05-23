@@ -92,6 +92,9 @@ namespace Messenger.Data.Migrations
 
                     NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
 
+                    b.Property<string>("AttachUri")
+                        .HasColumnType("text");
+
                     b.Property<int>("ChatId")
                         .HasColumnType("integer");
 
