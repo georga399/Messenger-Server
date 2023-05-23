@@ -39,16 +39,21 @@ public class ConnectionRepository: IConnectionRepository
     public async Task<List<Connection>?> GetAllConnectionsOfChat(int chatId)
     {
         var chat = await _dbContext.Chats
+        .Include(c => c.ChatUsers)
+        .ThenInclude(cu => cu.User)
+        .ThenInclude(co => co.Connections)
         .FirstOrDefaultAsync(c => c.Id == chatId);
         if(chat == null) return null;
-        await _dbContext.Entry(chat)
-        .Collection(c => c.ChatUsers).Query()
-        .Where(cu => cu.User.Connections.Count > 0)
-        .LoadAsync();
+        // await _dbContext.Entry(chat)
+        // .Collection(c => c.ChatUsers).Query()
+        // .Where(cu => cu.User.Connections.Count > 0)
+        // .LoadAsync();
+        
         List<Connection> connections = new();
         foreach(var cu in chat.ChatUsers)
         {
-            connections.AddRange(cu.User.Connections);
+            if(cu.User.Connections.Count > 0)
+                connections.AddRange(cu.User.Connections);
         }
         return connections;
     }
