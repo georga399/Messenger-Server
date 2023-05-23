@@ -7,4 +7,6 @@ public class MessageViewModel
     public DateTime Timestamp { get; set;}
     public string? FromUserId{get; set;}
     public string? FromUserName{get; set;}
+    public string? AttachUri{get; set;}
+
 }

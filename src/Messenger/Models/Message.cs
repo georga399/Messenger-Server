@@ -11,4 +11,5 @@ public class Message
     public int ChatId {get; set;}
     [Required]
     public Chat? Chat{get; set;}
+    public string? AttachUri{get; set;}
 }

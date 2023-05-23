@@ -70,7 +70,9 @@ public class ChatController: ControllerBase
         }
         if(!_fileValidator.IsValidPicture(file))
             return BadRequest("File validation failed!");
-        var fileName = chat.Id.ToString() + '.' + file.FileName.Split('.')[1];
+        if(file.FileName.Split('.').Count() <= 1)
+            return BadRequest("File validation failed!");
+        var fileName = chat.Id.ToString() + '.' + file.FileName.Split('.').Last();
         _logger.LogInformation($"Set avatar for chat {fileName}");
         var folderPath = Path.Combine(_environment.ContentRootPath, "uploads/chatsavatars");
         var filePath = Path.Combine(folderPath, fileName);
@@ -85,6 +87,7 @@ public class ChatController: ControllerBase
         await _unitOfWork.SaveChangesAsync();
         return Accepted(uploadUri);
     }
+    [AllowAnonymous]
     [HttpGet("chatava/{avatar}")]
     public async Task<IActionResult> GetAvatarOfChat(string avatar)
     {

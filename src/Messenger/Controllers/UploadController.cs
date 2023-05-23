@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.StaticFiles;
 using Messenger.Helpers;
 namespace Messenger.Controllers;
-[Authorize]
+// [Authorize]
 [ApiController]
 [Route("api/[controller]")]
 public class UploadController: ControllerBase
@@ -42,6 +42,10 @@ public class UploadController: ControllerBase
         var folderPath = Path.Combine(_environment.ContentRootPath, "uploads/attachments");
         var filePath = Path.Combine(folderPath, fileName);
         if(filePath == null)
+        {
+            return BadRequest("File not found");
+        }
+        if (!Directory.Exists(filePath))
         {
             return BadRequest("File not found");
         }

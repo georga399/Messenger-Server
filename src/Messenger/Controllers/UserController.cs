@@ -59,9 +59,13 @@ public class UserController: ControllerBase
     {
         var userId = HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier);
         var user = _unitOfWork.UserRepository.GetById(userId!);
+        if(file.FileName.Split('.').Count() <= 1) 
+        {
+            return BadRequest("Invalid format");
+        }
         if(!_fileValidator.IsValidPicture(file))
             return BadRequest("File validation failed!");
-        var fileName = userId! + '.' + file.FileName.Split('.')[1];
+        var fileName = userId! + '.' + file.FileName.Split('.').Last();
         var folderPath = Path.Combine(_environment.ContentRootPath, "uploads/usersavatars");
         var filePath = Path.Combine(folderPath, fileName);
         if (!Directory.Exists(folderPath))
@@ -76,12 +80,17 @@ public class UserController: ControllerBase
         await _unitOfWork.SaveChangesAsync();
         return Accepted(uploadUri);
     }
+    [AllowAnonymous]
     [HttpGet("ava/{userId}")]
     public async Task<IActionResult> GetAvatarOfUser(string userId)
     {
         var folderPath = Path.Combine(_environment.ContentRootPath, "uploads/usersavatars");
         var filePath = Path.Combine(folderPath, userId);
         if(filePath == null)
+        {
+            return BadRequest("File not found");
+        }
+        if (!Directory.Exists(filePath))
         {
             return BadRequest("File not found");
         }

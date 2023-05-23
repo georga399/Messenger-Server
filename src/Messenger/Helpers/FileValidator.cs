@@ -8,12 +8,12 @@ public class FileValidator: IFileValidator
     public FileValidator(IConfiguration configuration)
     {
         _configuration = configuration;            
-        _fileSizeLimit = _configuration.GetValue("FileUpload:FileSizeLimitInBytes", 10 * 1024 * 1024); // 10MB
+        _fileSizeLimit = _configuration.GetValue("FileUpload:FileSizeLimitInBytes", 20 * 1024 * 1024); // 10MB
         _allowedExtensionsMedia = _configuration
-        .GetValue("FileUpload:AllowedExtensionsMedia", ".jpg,.jpeg,.png,.mp3,.mp4,.avi")!
+        .GetValue("FileUpload:AllowedExtensionsMedia", ".jpg,.jpeg,.png,.mp3,.mp4,.avi,.mov")!
         .Split(",");
         _allowedExtensionsPictures = _configuration
-        .GetValue("FileUpload:AllowedExtensionsPictures", ".jpg,.jpeg,.png,.mp3,.mp4,.avi")!
+        .GetValue("FileUpload:AllowedExtensionsPictures", ".jpg,.jpeg,.png")!
         .Split(",");
     }
     public bool IsValidPicture(IFormFile file)
