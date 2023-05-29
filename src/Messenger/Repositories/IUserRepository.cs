@@ -6,5 +6,4 @@ public interface IUserRepository
     User? GetByName(string userName);
     User? GetByEmail(string email);
     List<User> GetAllUsers();
-    //TODO: void Update(User user); 
 }

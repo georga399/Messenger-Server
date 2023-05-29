@@ -44,6 +44,14 @@ public class UserController: ControllerBase
         if(_usr == null) return BadRequest("Not found");
         UserViewModel usr = _mapper.Map<User, UserViewModel>(_usr);
         return Ok(usr);
+    }
+    [HttpGet("getuserinfobyname/{userName}")]
+    public IActionResult GetUserInfoByName(string userName)
+    {
+        var _usr = _unitOfWork.UserRepository.GetByName(userName);
+        if(_usr == null) return BadRequest("Not found");
+        UserViewModel usr = _mapper.Map<User, UserViewModel>(_usr);
+        return Ok(usr);
     } 
     [HttpDelete("deleteuser")]
     public async Task<IActionResult> DeleteUser()
@@ -90,10 +98,10 @@ public class UserController: ControllerBase
         {
             return BadRequest("File not found");
         }
-        if (!Directory.Exists(filePath))
-        {
-            return BadRequest("File not found");
-        }
+        // if (!Directory.Exists(filePath))
+        // {
+        //     return BadRequest("File not found");
+        // }
         var provider = new FileExtensionContentTypeProvider();
         if(!provider.TryGetContentType(filePath, out var contenttype))
         {
@@ -102,4 +110,5 @@ public class UserController: ControllerBase
         var bytes = await System.IO.File.ReadAllBytesAsync(filePath);
         return File(bytes, contenttype, Path.GetFileName(filePath));
     }
+
 }

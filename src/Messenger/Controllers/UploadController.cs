@@ -34,7 +34,7 @@ public class UploadController: ControllerBase
         }
         var uploadUri = $"{Request.Scheme}://{Request.Host}/api/upload/attach/{fileName}";
         _logger.LogInformation($"File uploaded to {uploadUri}");
-        return Accepted(uploadUri);
+        return Ok(uploadUri);
     }   
     [HttpGet("attach/{fileName}")]
     public async Task<IActionResult> GetAttachment(string fileName)
@@ -45,10 +45,10 @@ public class UploadController: ControllerBase
         {
             return BadRequest("File not found");
         }
-        if (!Directory.Exists(filePath))
-        {
-            return BadRequest("File not found");
-        }
+        // if (!Directory.Exists(filePath))
+        // {
+        //     return BadRequest("File not found");
+        // }
         var provider = new FileExtensionContentTypeProvider();
         if(!provider.TryGetContentType(filePath, out var contenttype))
         {

@@ -37,6 +37,7 @@ public class MessagesController: ControllerBase
         .Include(u => u.ChatUsers)
         .ThenInclude(cu => cu.Chat)
         .ThenInclude(ch=>ch!.Messages)
+        .ThenInclude(m => m.FromUser)
         .FirstOrDefaultAsync(u=> u.Id == HttpContext.User.FindFirstValue(ClaimTypes.NameIdentifier));
         if(user == null) return BadRequest("User not found");
         var chatUser = user.ChatUsers.FirstOrDefault(cu => cu.ChatId == id);
